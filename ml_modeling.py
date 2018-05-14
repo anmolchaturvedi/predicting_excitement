@@ -7,7 +7,7 @@ import graphviz
 from sklearn.metrics import accuracy_score as accuracy
 
 
-def split_data(df, outcome_var, geo_columns, test_size):
+def split_data(df, outcome_var, geo_columns, test_size, seed = None):
     '''
     Separate data frame into training and test subsets based on specified size 
     for model training and evaluation.
@@ -28,7 +28,7 @@ def split_data(df, outcome_var, geo_columns, test_size):
     # isolate outcome variable in separate data frame
     Y = df[outcome_var]
 
-    return train_test_split(X, Y, test_size = test_size)
+    return train_test_split(X, Y, test_size = test_size, random_state = seed)
 
 
 
@@ -124,8 +124,8 @@ def feature_importance_ranking(best_tree, training_predictors):
     '''
     features_df = pd.DataFrame(best_tree.feature_importances_, 
                                 training_predictors.columns).rename(
-                                columns = {0: 'feature_importance'}).sort_values(
-                                by = 'feature_importance', ascending = False)
+                                columns = {0: 'feature_importance'}, inplace = True)
+    features_df.sort_values(by = 'feature_importance', ascending = False)
     return features_df
 
 

@@ -90,6 +90,15 @@ def outliers_modified_z_score(df, col):
     return modified_zscore[modified_zscore > threshold]
 
 
+def convert_dates(date_series):
+    '''
+    Faster approach to datetime parsing for large datasets leveraging repated dates.
+
+    Attribution: https://github.com/sanand0/benchmarks/commit/0baf65b290b10016e6c5118f6c4055b0c45be2b0
+    '''
+    dates = {date:pd.to_datetime(date) for date in date_series.unique()}
+    return date_series.map(dates)
+
 
 def view_max_mins(df, max = True):
     '''
@@ -128,17 +137,21 @@ def view_likely_outliers(df, max = True):
 
 
 
-def remove_over_threshold(df, col, threshold = False, value_cutoff = None):
+def remove_over_under_threshold(df, col, min_val = False, max_val = False, lwr_threshold = None, upr_threshold = False):
     '''
     Remove values over given percentile or value in a column of a given data 
     frame
     '''
-    if value_cutoff:
-        df.loc[df[col] > value_cutoff, col] = None
-    if threshold:
+    if max_val:
+        df.loc[df[col] > max_val, col] = None
+    if min_val:
+        df.loc[df[col] < min_val, col] = None
+    if upr_threshold:
         maxes = view_max_mins(df, max = True)
-        df.loc[df[col] > maxes.loc[threshold, col], col] = None
-
+        df.loc[df[col] > maxes.loc[upr_threshold, col], col] = None
+    if lwr_threshold:
+        mins = view_max_mins(df, max = False)
+        df.loc[df[col] < mins.loc[lwr_threshold, col], col] = None
     
 
 def remove_dramatic_outliers(df, col, threshold, max = True):
@@ -179,24 +192,63 @@ def basic_fill_vals(df, col_name, method = None):
         df[col_name] = df[col_name].fillna(replacement_val)
 
 
-def isolate_noncategoricals(df, ret_categoricals = False, geo_cols = None):
+# def isolate_noncategoricals(df, ret_categoricals = False, geo_cols = None):
+#     '''
+#     Retrieve list of cateogrical or non-categorical columns from a given dataframe
+
+#     Inputs:
+#         df: pandas dataframe
+#         ret_categoricals: (boolean) True when output should be list of  
+#             categorical colmn names, False when output should be list of 
+#             non-categorical column names
+
+#     Outputs: list of column names from data frame
+#     '''
+#     if ret_categoricals:
+#         categorical = [col for col in df.columns if re.search("_bin|_was_null", col)]
+#         return categorical + geo_cols
+#     else:
+#         non_categorical = [col for col in df.columns if not \
+#         re.search("_bin", col) and col not in geo_cols]
+#         return non_categorical
+
+
+def is_category(col_name, geos = True):
+    '''
+    Utility function to determine whether a given column name includes key words or
+    phrases indicating it is categorical.
+
+    Inputs:
+        col_name: (string) name of a column
+        geos: (boolean) whether or not to include geographical words or phrases
+            in column name search
+    '''
+    if geos:
+        return re.search("_bin|_was_null|city|state|county|country|zip|zipcode|latitude|longitude", col_name)
+    else:
+        return re.search("_bin|_was_null", col_name)
+
+
+def isolate_categoricals(df, categoricals_fcn, ret_categoricals = False, geos_indicator = True):
     '''
     Retrieve list of cateogrical or non-categorical columns from a given dataframe
 
     Inputs:
         df: pandas dataframe
+        categoricals_fcn: (function) Function to parse column name and return boolean
+            indicating whether or not column is categorical
         ret_categoricals: (boolean) True when output should be list of  
             categorical colmn names, False when output should be list of 
             non-categorical column names
 
     Outputs: list of column names from data frame
     '''
+    categorical = [col for col in df.columns if categoricals_fcn(col, geos = geos_indicator)]
+    non_categorical = [col for col in df.columns if not categoricals_fcn(col, geos = geos_indicator)]
+    
     if ret_categoricals:
-        categorical = [col for col in df.columns if re.search("_bin", col)]
-        return categorical + geo_cols
+        return categorical
     else:
-        non_categorical = [col for col in df.columns if not \
-        re.search("_bin", col) and col not in geo_cols]
         return non_categorical
 
 
@@ -208,4 +260,8 @@ def change_col_name(df, current_name, new_name):
     df.columns = [new_name if col == current_name else col for col in df.columns]
 
 
+def record_nulls(df):
+    for col in list(df.columns):
+        title = col + "_was_null"
+        df[title] = df[col].isnull().astype(int)
 

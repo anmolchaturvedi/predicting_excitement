@@ -4,20 +4,26 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 import math
 import re
-from ml_pipeline_lch import isolate_noncategoricals
+from ml_pipeline_lch import isolate_categoricals, is_category
 
 
-def view_dist(df, geo_columns):
+def view_dist(df, geo_columns = True, fig_size=(20,15), labels = None):
     '''
     Plot distributions of non-categorical columns in a given dataframe
 
     Inputs:
         df: pandas dataframe
         geo_columns: list of column names corresponding to columns with numeric geographical information (ex: zipcodes)
+        labels: list of labels to apply to plot: title, xlable, ylabel, respectively
     '''
-    non_categoricals = isolate_noncategoricals(df, ret_categoricals = False, 
-                                                geo_cols = geo_columns)
-    df[non_categoricals].hist(bins = 50, figsize=(20,15), color = 'blue')
+    non_categoricals = isolate_categoricals(df, categoricals_fcn = is_category, ret_categoricals = False, geos_indicator = geo_columns)
+    # non_categoricals = isolate_noncategoricals(df, ret_categoricals = False, 
+    #                                             geo_cols = geo_columns)
+    df[non_categoricals].hist(bins = 20, figsize=fig_size, color = 'blue')
+    if labels:
+        plt.title(labels[0])
+        plt.xlabel(labels[1])
+        plt.ylabel(labels[2])
     plt.show()
 
 
@@ -49,6 +55,7 @@ def check_corr(df, geo_columns):
     ax.tick_params(direction='inout')
     ax.set_xticklabels(non_categoricals, rotation=45, ha='right')
     ax.set_yticklabels(non_categoricals, rotation=45, va='top')
+    plt.title('Feature Correlation')
     plt.show()
 
 
@@ -120,38 +127,49 @@ def plot_corr(df, geo_columns, color_category):
 
 
 def plot_relationship(df, feature_x, xlabel,feature_y, ylabel, xlimit = None, 
-                        ylimit = None, color_cat = None):
+                        ylimit = None, color_cat = None, filter_col = None, 
+                        filter_criteria = None, filter_param = None, 
+                        filter_param2 = None):
     '''
     Plot two features in a given data frame against each other to view 
     relationship and outliers. 
     
     Attribution: adapted from https://s3.amazonaws.com/assets.datacamp.com/blog_assets/Python_Seaborn_Cheat_Sheet.pdf
     '''
-    g = sns.lmplot(x = feature_x, y = feature_y, data = df, aspect = 3, 
-                    hue = color_cat)
-    g = (g.set_axis_labels(xlabel,ylabel)).set(xlim = xlimit , ylim = ylimit)
-    plot_title = ylabel + " by " + xlabel
-    plt.title(plot_title)
-    plt.show(g)
+    if filter_col and filter_criteria and filter_param:
+        if filter_criteria == 'geq':
+            use_df = df[df[filter_col] >= filter_param]
+        elif filter_criteria == 'gt':
+            use_df = df[df[filter_col] > filter_param]
+        elif filter_criteria == 'leq':
+            use_df = df[df[filter_col] <= filter_param]
+        elif filter_criteria == 'lt':
+            use_df = df[df[filter_col] < filter_param]
+        elif filter_criteria == 'eq':
+            use_df = df[df[filter_col] == filter_param]
+        elif filter_criteria == 'neq':
+            use_df = df[df[filter_col] != filter_param]
+        elif filter_criteria == 'between':
+            use_df = df[(df[filter_col] > filter_param) and (df[filter_col] < filter_param2)]
 
-
-
-
-def plot_relationship(df, feature_x, xlabel,feature_y, ylabel, xlimit = None, 
-                        ylimit = None, color_cat = None):
-    '''
-    Plot two features in a given data frame against each other to view 
-    relationship and outliers. 
+        g = sns.lmplot(x = feature_x, y = feature_y, data = use_df, aspect = 3, 
+                        hue = color_cat)
+        g = (g.set_axis_labels(xlabel,ylabel)).set(xlim = xlimit , ylim = ylimit)
+        plot_title = ylabel + " by " + xlabel
+        plt.title(plot_title)
+        plt.show(g)
     
-    Attribution: adapted from https://s3.amazonaws.com/assets.datacamp.com/blog_assets/Python_Seaborn_Cheat_Sheet.pdf
-    '''
-    sns.set_style("whitegrid")
-    g = sns.lmplot(x = feature_x, y = feature_y, data = df, aspect = 3, 
-                   hue = color_cat)
-    g = (g.set_axis_labels(xlabel,ylabel)).set(xlim = xlimit , ylim = ylimit)
-    plot_title = ylabel + " by " + xlabel
-    plt.title(plot_title)
-    plt.show(g)
+    else:
+        g = sns.lmplot(x = feature_x, y = feature_y, data = df, aspect = 3, 
+                        hue = color_cat)
+        g = (g.set_axis_labels(xlabel,ylabel)).set(xlim = xlimit , ylim = ylimit)
+        plot_title = ylabel + " by " + xlabel
+        plt.title(plot_title)
+        plt.show(g)
+
+
+
+
 
 
 
