@@ -1,5 +1,5 @@
 import pandas as pd
-from itertools import product
+import itertools
 import sklearn
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
@@ -31,6 +31,47 @@ def split_data(df, outcome_var, geo_columns, test_size, seed = None):
     return train_test_split(X, Y, test_size = test_size, random_state = seed)
 
 
+def loop_multiple_classifiers(param_dict = None, training_predictors, 
+        testing_predictors, training_outcome, testing_outcome):
+    classifier_type = {
+        "Logistic Regression": LogisticRegression(),
+        "KNN": KNeighborsClassifier(),
+        "Decision Tree": DecisionTreeClassifier(),
+        "SVM": svm.SVC(),
+        "Naive Bayes": GaussianNB(),
+        "Random Forest": RandomForestClassifier()
+    }
+
+    if param_dict is None:
+    # define parameters to loop over. thanks to the DSSG team for the recommendations!
+        param_dict = {
+        "Logistic Regression": { 'penalty': ['l1','l2'], 'C': [0.00001,0.001,0.1,1,10]},
+        'KNN' :{'n_neighbors': [1,5,10,25,50,100],'weights': ['uniform','distance'],'algorithm': ['auto','ball_tree','kd_tree']}
+        "Decision Tree": {'criterion': ['gini', 'entropy'], 'max_depth': [1,5,10,20,50,100], 'max_features': [None, 'sqrt','log2'],'min_samples_split': [2,5,10]}
+        'SVM' :{'C' :[0.00001,0.0001,0.001,0.01,0.1,1,10],'kernel':['linear']},
+        "Naive Bayes": {},
+        "Random Forest": {'n_estimators': [100, 10000], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs':[-1]},
+               }
+
+    for name, classifier in classifier_type.items():
+        options = param_dict[name] 
+        tuners = list(options.keys())
+        list_params = list(itertools.product(*options.values()))
+        all_model_params = []
+        for params in list_params:
+            kwargs_dict = dict(zip(tuners, params))
+            all_model_params.append(kwargs_dict)
+
+        for args in all_model_params:
+            clf = classifier(**args)
+
+            clf.fit(training_predictors, training_outcome)
+
+            train_pred = clf.predict_proba(training_predictors)
+            test_pred = clf.predict_proba(testing_predictors)
+
+
+
 
 def loop_dt(param_dict, training_predictors, testing_predictors, 
                 training_outcome, testing_outcome):
@@ -54,8 +95,18 @@ def loop_dt(param_dict, training_predictors, testing_predictors,
     and method for faster population of a data frame row-by-row from ShikharDua: 
     https://stackoverflow.com/questions/10715965/add-one-row-in-a-pandas-dataframe
     '''
+
+
     rows_list = []
-    for params in list(product(*param_dict.values())):
+    for clf_type, classifier in classifier_type.items():
+    
+        for params in list(itertools.product(*param_dict.values())):
+            classifier(params)
+            dec_tree.fit(training_predictors, training_outcome)
+
+
+    rows_list = []
+    for params in list(itertools.product(*param_dict.values())):
         dec_tree = DecisionTreeClassifier(criterion = params[0], 
                                           max_depth = params[1],
                                           max_features = params[2],

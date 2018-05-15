@@ -172,7 +172,7 @@ def remove_dramatic_outliers(df, col, threshold, max = True):
 
 
 
-def basic_fill_vals(df, col_name, method = None):
+def basic_fill_vals(df, col_name, method = None, replace_with = None):
     '''
     For columns with more easily predicatable null values, fill with mean, median, or zero
 
@@ -189,6 +189,9 @@ def basic_fill_vals(df, col_name, method = None):
         df[col_name] = df[col_name].fillna(replacement_val)
     elif method == "mean":
         replacement_val = df[col_name].mean()
+        df[col_name] = df[col_name].fillna(replacement_val)
+    elif method = "replace":
+        replacement_val = replace_with
         df[col_name] = df[col_name].fillna(replacement_val)
 
 

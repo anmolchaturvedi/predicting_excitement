@@ -28,7 +28,7 @@ def view_dist(df, geo_columns = True, fig_size=(20,15), labels = None):
 
 
 
-def check_corr(df, geo_columns):
+def check_corr(df, geo_columns = True):
     '''
    Display heatmap of linear correlation between non-categorical columns in a 
    given dataframe
@@ -41,10 +41,10 @@ def check_corr(df, geo_columns):
     Attribution: Colormap Attribution: adapted from gradiated dataframe at 
     https://www.datascience.com/blog/introduction-to-correlation-learn-data-science-tutorials and correlation heatmap at https://stackoverflow.com/questions/29432629/correlation-matrix-using-pandas
     '''
+    non_categoricals = isolate_categoricals(df, categoricals_fcn = is_category, 
+        ret_categoricals = False, geos_indicator = geo_columns)
+
     fig, ax = plt.subplots(figsize=(12, 12))
-    non_categoricals = isolate_noncategoricals(df, ret_categoricals = False, 
-                                                geo_cols = geo_columns)
-    
     corr = df[non_categoricals].corr(method="pearson")
     sns.heatmap(corr, mask=np.zeros_like(corr, dtype=np.bool), 
                 cmap=plt.get_cmap("coolwarm"), square=True, ax=ax, annot=True)
@@ -60,7 +60,7 @@ def check_corr(df, geo_columns):
 
 
 
-def discretize_cols(df, geo_columns, num_bins):
+def discretize_cols(df, num_bins, geo_columns=True):
     '''
     Add columns to discretize and classify non-categorical columns in a given 
     data frame
@@ -72,8 +72,9 @@ def discretize_cols(df, geo_columns, num_bins):
         num_bins: number of groups into which column values should be 
             discretized
     '''
-    non_categoricals = isolate_noncategoricals(df, ret_categoricals = False, 
-                                                geo_cols = geo_columns)
+    non_categoricals = isolate_categoricals(df, categoricals_fcn = is_category, 
+        ret_categoricals = False, geos_indicator = geo_columns)
+   
     for col in non_categoricals:
         bin_col = col + "_bin"
         if col == "age":
@@ -110,7 +111,7 @@ def create_binary_vars(df, cols_to_dummy, keyword_list):
 
 
 
-def plot_corr(df, geo_columns, color_category):
+def plot_corr(df, color_category, geo_columns=True):
     '''
     Observe distributions and correlations of features for non-categorical 
 
@@ -119,8 +120,9 @@ def plot_corr(df, geo_columns, color_category):
         categoricals_list: list of strings corresponding to categorical columns 
             (ex: zip codes)
     '''
-    non_categoricals = isolate_noncategoricals(df, ret_categoricals = False, 
-                                                geo_cols = geo_columns)
+    non_categoricals = isolate_categoricals(df, categoricals_fcn = is_category, 
+        ret_categoricals = False, geos_indicator = geo_columns)
+   
     plot_list = non_categoricals + [color_category]
     corr = sns.pairplot(df[plot_list], hue = color_category, palette = "Set2")
 
