@@ -77,6 +77,7 @@ def loop_multiple_classifiers(param_dict = None, training_predictors,
             train_pred = clf.predict_proba(training_predictors)
             test_pred = clf.predict_proba(testing_predictors)
 
+            sklearn.metrics.f1_score(testing_outcome, test_pred, average='macro')
             # run evaluation metrics on the model
 
 
