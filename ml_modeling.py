@@ -42,18 +42,23 @@ def loop_multiple_classifiers(param_dict = None, training_predictors,
         "Random Forest": RandomForestClassifier()
     }
 
+
+    # need to add bagging and boosting!! 
+
     if param_dict is None:
-    # define parameters to loop over. thanks to the DSSG team for the recommendations!
+    # define parameters to loop over. Thanks to the DSSG team for the recommendations!
         param_dict = {
-        "Logistic Regression": { 'penalty': ['l1','l2'], 'C': [0.00001,0.001,0.1,1,10]},
+        "Logistic Regression": { 'penalty': ['l1','l2'], 'C': [0.00001,0.001,0.1,1,10], 'random_state':[1008]},
         'KNN' :{'n_neighbors': [1,5,10,25,50,100],'weights': ['uniform','distance'],'algorithm': ['auto','ball_tree','kd_tree']}
-        "Decision Tree": {'criterion': ['gini', 'entropy'], 'max_depth': [1,5,10,20,50,100], 'max_features': [None, 'sqrt','log2'],'min_samples_split': [2,5,10]}
-        'SVM' :{'C' :[0.00001,0.0001,0.001,0.01,0.1,1,10],'kernel':['linear']},
+        "Decision Tree": {'criterion': ['gini', 'entropy'], 'max_depth': [1,5,10,20,50,100], 'max_features': [None, 'sqrt','log2'],'min_samples_split': [2,5,10], 'random_state':[1008]}
+        'SVM' :{'C' :[0.00001,0.0001,0.001,0.01,0.1,1,10],'kernel':['linear'], 'probability':[True, False], 'random_state':[1008]},
         "Naive Bayes": {},
-        "Random Forest": {'n_estimators': [100, 10000], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs':[-1]},
+        "Random Forest": {'n_estimators': [100, 10000], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs':[-1], 'random_state':[1008]},
                }
 
     for name, classifier in classifier_type.items():
+        # create dictionaries for each possible tuning option specified 
+        # in param_dict
         options = param_dict[name] 
         tuners = list(options.keys())
         list_params = list(itertools.product(*options.values()))
@@ -62,6 +67,8 @@ def loop_multiple_classifiers(param_dict = None, training_predictors,
             kwargs_dict = dict(zip(tuners, params))
             all_model_params.append(kwargs_dict)
 
+        # create all possible models using tuners in dictionaries created 
+        # above
         for args in all_model_params:
             clf = classifier(**args)
 
@@ -70,6 +77,12 @@ def loop_multiple_classifiers(param_dict = None, training_predictors,
             train_pred = clf.predict_proba(training_predictors)
             test_pred = clf.predict_proba(testing_predictors)
 
+            # run evaluation metrics on the model
+
+
+
+
+            # store in data frame
 
 
 
