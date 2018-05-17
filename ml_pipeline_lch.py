@@ -234,6 +234,12 @@ def is_category(col_name, flag = None, geos = True):
     return re.search(search_for, col_name)
 
 
+
+def replace_dummies(df, cols_to_dummy):
+    return pd.get_dummies(df, columns = cols_to_dummy, dummy_na=True)
+
+
+
 def isolate_categoricals(df, categoricals_fcn, ret_categoricals = False, geos_indicator = True):
     '''
     Retrieve list of cateogrical or non-categorical columns from a given dataframe
@@ -270,6 +276,32 @@ def record_nulls(df):
         title = col + "_was_null"
         df[title] = df[col].isnull().astype(int)
 
+
+
+def organize_variables(df, col_names, indicator, var_dict = None):
+    if var_dict is None:
+        var_dict = {'binary': [], 'tops': [], 'drop': [], 'ids': [], 'geo': [], 'multi': [], 'numeric': []}
+    
+    if indicator == 'binary':
+        var_dict[indicator] += col_names
+    elif indicator == 'multi':
+        var_dict[indicator] += col_names
+    elif indicator == 'numeric':
+        var_dict[indicator] += col_names
+    elif indicator == 'geo':
+        var_dict[indicator] += col_names
+    elif indicator == 'ids':
+        var_dict[indicator] += col_names
+    elif indicator == 'tops':
+        var_dict[indicator] += col_names
+    elif indicator == 'drop':
+        var_dict[indicator] += col_names
+    
+    return var_dict
+
+
+
+
 def time_series_split(df, date_col, train_size, test_size, increment = 'month', specify_start = None):
     
     if specify_start:
@@ -299,31 +331,80 @@ def time_series_split(df, date_col, train_size, test_size, increment = 'month', 
         test_min = train_max + relativedelta(years = train_size)
         test_max = min(test_min + relativedelta(years = test_size), df[date_col].max())
     
-    train_df = df[(df[date_col] >= min_date) & (df[date_col] <= train_max)]
-    test_df = df[(df[date_col] >= test_min) & (df[date_col] <= test_max)]
+    new_df = df[df.columns]
+    train_df = new_df[(new_df[date_col] >= min_date) & (new_df[date_col] <= train_max)]
+    test_df = new_df[(new_df[date_col] >= test_min) & (new_df[date_col] <= test_max)]
     
     return [train_df, test_df]
 
-def organize_variables(df, col_names, indicator, var_dict = None):
-    if var_dict is None:
-        var_dict = {'binary': [], 'tops': [], 'drop': [], 'ids': [], 'geo': [], 'multi': [], 'numeric': []}
+
+def create_expanding_splits(df, total_periods, dates, train_period_base, test_period_size, period = 'month', defined_start = None):
+    num_months = total_periods / test_period_size
+    months_used = train_period_base
     
-    if indicator == 'binary':
-        var_dict[indicator] += col_names
-    elif indicator == 'multi':
-        var_dict[indicator] += col_names
-    elif indicator == 'numeric':
-        var_dict[indicator] += col_names
-    elif indicator == 'geo':
-        var_dict[indicator] += col_names
-    elif indicator == 'ids':
-        var_dict[indicator] += col_names
-    elif indicator == 'tops':
-        var_dict[indicator] += col_names
-    elif indicator == 'drop':
-        var_dict[indicator] += col_names
+    tt_sets = []
     
-    return var_dict
+    while months_used < total_periods:
+        
+        print("original train period lenth: {}".format(train_period_base))
+        train, test = time_series_split(df, date_col = dates, train_size = train_period_base, test_size = test_period_size, increment = period, specify_start = defined_start)
+        print("train: {}, test: {}".format(train.shape, test.shape))
+        tt_sets.append((train, test))
+        train_period_base += test_period_size
+        months_used += test_period_size
+    
+    return tt_sets
+
+
+
+def determine_top_dummies(test_train_set_list, var_dict, threshold, max_options = 10):
+    set_distro_dummies = []
+    counter = 1
+    for train, test in test_train_set_list:
+        dummies_dict = {}
+        print(var_dict['tops'])
+        for col in train[var_dict['tops']]:
+            print("col: ", col)
+            col_sum = train[col].value_counts().sum()
+            top = train[col].value_counts().nlargest(max_options)
+            top_value = 0
+            num_dummies = 0
+
+            while ((top_value / col_sum) < threshold) & (num_dummies < max_options):
+                print("num_before: ", num_dummies)
+                top_value += top[num_dummies]
+                num_dummies += 1
+            print("num after: ", num_dummies)
+            print(top_value / col_sum)
+
+            keep_dummies = list(top.index)[:num_dummies]
+            dummies_dict[col] = keep_dummies
+            
+        counter += 1
+        set_distro_dummies.append(dummies_dict)
+
+    return set_distro_dummies
+
+
+
+def lower_vals_to_other(set_specific_dummies, train_test_tuples):
+    counter = 0
+    for i, set_dict in enumerate(set_specific_dummies):
+        print("starting set {}...".format(counter))
+        counter += 1
+        for col, vals in set_dict.items():
+            train, test = train_test_tuples[i]
+            train.loc[~train[col].isin(vals), col] = 'Other'
+            test.loc[~test[col].isin(vals), col] = 'Other'
+
+
+
+    def plot_top_distros(train_test_tuples, var_dict, set_num):
+    for i, col in enumerate(var_dict['tops']):
+        train, test = train_test_tuples[set_num]
+        plot_title = "Projects by {} for Training Set {}".format(col, set_num)
+        train[col].value_counts().sort_index().plot(kind='bar', title = plot_title)
+        plt.show()
 
 
 
