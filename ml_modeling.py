@@ -63,6 +63,7 @@ def loop_multiple_classifiers(training_predictors, testing_predictors,
         tuners = list(options.keys())
         list_params = list(itertools.product(*options.values()))
         all_model_params = []
+
         for params in list_params:
             kwargs_dict = dict(zip(tuners, params))
             all_model_params.append(kwargs_dict)
@@ -75,7 +76,11 @@ def loop_multiple_classifiers(training_predictors, testing_predictors,
             clf.fit(training_predictors, training_outcome)
 
             train_pred = clf.predict_proba(training_predictors)
+            train_pred = train_pred[:,1]
+
             test_pred = clf.predict_proba(testing_predictors)
+            # retain column associated with outcome of interest (1)
+            test_pred = test_pred[:,1]
 
             sklearn.metrics.f1_score(testing_outcome, test_pred, average='macro')
             # run evaluation metrics on the model

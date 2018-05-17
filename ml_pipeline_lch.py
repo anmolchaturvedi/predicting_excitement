@@ -26,16 +26,20 @@ def retrieve_data(filename, headers = False, set_ind = None):
 
 
 
-def print_null_freq(df):
+def print_null_freq(df, blanks_only = False):
     '''
     For all columns in a given dataframe, calculate and print number of null and non-null values
 
-    Attribution: https://github.com/yhat/DataGotham2013/blob/master/analysis/main.py
+    Attribution: Adapted from https://github.com/yhat/DataGotham2013/blob/master/analysis/main.py
     '''
     df_lng = pd.melt(df)
     null_variables = df_lng.value.isnull()
-    print(pd.crosstab(df_lng.variable, null_variables))
-
+    all_rows = pd.crosstab(df_lng.variable, null_variables)
+        
+    if blanks_only:
+        return all_rows[all_rows[True] > 0]
+    else: 
+        return all_rows
 
 
 def create_col_ref(df):
@@ -275,6 +279,7 @@ def record_nulls(df):
     for col in list(df.columns):
         title = col + "_was_null"
         df[title] = df[col].isnull().astype(int)
+    df = df.loc[:, (df != 0).any(axis=0)]
 
 
 
@@ -338,6 +343,7 @@ def time_series_split(df, date_col, train_size, test_size, increment = 'month', 
     return [train_df, test_df]
 
 
+
 def create_expanding_splits(df, total_periods, dates, train_period_base, test_period_size, period = 'month', defined_start = None):
     num_months = total_periods / test_period_size
     months_used = train_period_base
@@ -357,12 +363,12 @@ def create_expanding_splits(df, total_periods, dates, train_period_base, test_pe
 
 
 
-def determine_top_dummies(test_train_set_list, var_dict, threshold, max_options = 10):
+def determine_top_dummies(train_test_tuples, var_dict, threshold, max_options = 10):
     set_distro_dummies = []
     counter = 1
-    for train, test in test_train_set_list:
+    for train, test in train_test_tuples:
+        print("starting set {}..."format(counter))
         dummies_dict = {}
-        print(var_dict['tops'])
         for col in train[var_dict['tops']]:
             print("col: ", col)
             col_sum = train[col].value_counts().sum()
@@ -371,11 +377,9 @@ def determine_top_dummies(test_train_set_list, var_dict, threshold, max_options 
             num_dummies = 0
 
             while ((top_value / col_sum) < threshold) & (num_dummies < max_options):
-                print("num_before: ", num_dummies)
                 top_value += top[num_dummies]
                 num_dummies += 1
-            print("num after: ", num_dummies)
-            print(top_value / col_sum)
+            print("Keeping top {} values.".format(num_dummies, (top_value / col_sum)))
 
             keep_dummies = list(top.index)[:num_dummies]
             dummies_dict[col] = keep_dummies
