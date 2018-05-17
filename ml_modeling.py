@@ -31,8 +31,8 @@ def split_data(df, outcome_var, geo_columns, test_size, seed = None):
     return train_test_split(X, Y, test_size = test_size, random_state = seed)
 
 
-def loop_multiple_classifiers(param_dict = None, training_predictors, 
-        testing_predictors, training_outcome, testing_outcome):
+def loop_multiple_classifiers(training_predictors, testing_predictors,
+         training_outcome, testing_outcome, param_dict = None, ):
     classifier_type = {
         "Logistic Regression": LogisticRegression(),
         "KNN": KNeighborsClassifier(),
@@ -49,8 +49,8 @@ def loop_multiple_classifiers(param_dict = None, training_predictors,
     # define parameters to loop over. Thanks to the DSSG team for the recommendations!
         param_dict = {
         "Logistic Regression": { 'penalty': ['l1','l2'], 'C': [0.00001,0.001,0.1,1,10], 'random_state':[1008]},
-        'KNN' :{'n_neighbors': [1,5,10,25,50,100],'weights': ['uniform','distance'],'algorithm': ['auto','ball_tree','kd_tree']}
-        "Decision Tree": {'criterion': ['gini', 'entropy'], 'max_depth': [1,5,10,20,50,100], 'max_features': [None, 'sqrt','log2'],'min_samples_split': [2,5,10], 'random_state':[1008]}
+        'KNN' :{'n_neighbors': [1,5,10,25,50,100],'weights': ['uniform','distance'],'algorithm': ['auto','ball_tree','kd_tree']},
+        "Decision Tree": {'criterion': ['gini', 'entropy'], 'max_depth': [1,5,10,20,50,100], 'max_features': [None, 'sqrt','log2'],'min_samples_split': [2,5,10], 'random_state':[1008]},
         'SVM' :{'C' :[0.00001,0.0001,0.001,0.01,0.1,1,10],'kernel':['linear'], 'probability':[True, False], 'random_state':[1008]},
         "Naive Bayes": {},
         "Random Forest": {'n_estimators': [100, 10000], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs':[-1], 'random_state':[1008]},
@@ -80,7 +80,7 @@ def loop_multiple_classifiers(param_dict = None, training_predictors,
             sklearn.metrics.f1_score(testing_outcome, test_pred, average='macro')
             # run evaluation metrics on the model
 
-
+            # predict_proba: KNN, SVM, LR
 
 
             # store in data frame

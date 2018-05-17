@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 import re
-
+from dateutil.relativedelta import relativedelta
+from datetime import datetime, timedelta
 
 def retrieve_data(filename, headers = False, set_ind = None):
     '''
@@ -190,33 +191,27 @@ def basic_fill_vals(df, col_name, method = None, replace_with = None):
     elif method == "mean":
         replacement_val = df[col_name].mean()
         df[col_name] = df[col_name].fillna(replacement_val)
-    elif method = "replace":
+    elif method == "replace":
         replacement_val = replace_with
         df[col_name] = df[col_name].fillna(replacement_val)
 
 
-# def isolate_noncategoricals(df, ret_categoricals = False, geo_cols = None):
-#     '''
-#     Retrieve list of cateogrical or non-categorical columns from a given dataframe
 
-#     Inputs:
-#         df: pandas dataframe
-#         ret_categoricals: (boolean) True when output should be list of  
-#             categorical colmn names, False when output should be list of 
-#             non-categorical column names
-
-#     Outputs: list of column names from data frame
-#     '''
-#     if ret_categoricals:
-#         categorical = [col for col in df.columns if re.search("_bin|_was_null", col)]
-#         return categorical + geo_cols
-#     else:
-#         non_categorical = [col for col in df.columns if not \
-#         re.search("_bin", col) and col not in geo_cols]
-#         return non_categorical
+def check_col_types(df):
+    return pd.DataFrame(df.dtypes, df.columns).rename({0: 'data_type'}, axis = 1)
 
 
-def is_category(col_name, geos = True):
+def view_cols(df):
+    '''
+    View unique values across columns in given data frame.
+    '''
+    for col in df.columns:
+        print(col)
+        print(df[col].unique())
+        print()
+
+
+def is_category(col_name, flag = None, geos = True):
     '''
     Utility function to determine whether a given column name includes key words or
     phrases indicating it is categorical.
@@ -226,10 +221,17 @@ def is_category(col_name, geos = True):
         geos: (boolean) whether or not to include geographical words or phrases
             in column name search
     '''
+    search_for = ["_bin","_was_null"]
+
+    if flag:
+        search_for += [flag]
+
     if geos:
-        return re.search("_bin|_was_null|city|state|county|country|zip|zipcode|latitude|longitude", col_name)
-    else:
-        return re.search("_bin|_was_null", col_name)
+        search_for += ["city", "state", "county", "country", "zip", "zipcode", "latitude", "longitude"]
+
+    search_for = "|".join(search_for)
+
+    return re.search(search_for, col_name)
 
 
 def isolate_categoricals(df, categoricals_fcn, ret_categoricals = False, geos_indicator = True):
@@ -267,4 +269,61 @@ def record_nulls(df):
     for col in list(df.columns):
         title = col + "_was_null"
         df[title] = df[col].isnull().astype(int)
+
+def time_series_split(df, date_col, train_size, test_size, increment = 'month', specify_start = None):
+    
+    if specify_start:
+        min_date = datetime.strptime(specify_start, '%Y-%m-%d')
+    else:
+        min_date = df[date_col].min()
+
+        if min_date.day > 25:
+            min_date += datetime.timedelta(days = 7)
+            min_date = min_date.replace(day=1, hour=0, minute=0, second=0)
+
+        else:
+            min_date = min_date.replace(day=1, hour=0, minute=0, second=0)
+    
+    if increment == 'month':
+        train_max = min_date + relativedelta(months = train_size)
+        test_min = train_max + timedelta(days = 1)
+        test_max = min(test_min + relativedelta(months = test_size), df[date_col].max())
+        
+    if increment == 'day':
+        train_max = min_date + relativedelta(days = train_size)
+        test_min = train_max + timedelta(days = 1)
+        test_max = min((test_min + relativedelta(days = test_size)), df[date_col].max())
+    
+    if increment == 'year':
+        train_max = timedelta(months = train_size)
+        test_min = train_max + relativedelta(years = train_size)
+        test_max = min(test_min + relativedelta(years = test_size), df[date_col].max())
+    
+    train_df = df[(df[date_col] >= min_date) & (df[date_col] <= train_max)]
+    test_df = df[(df[date_col] >= test_min) & (df[date_col] <= test_max)]
+    
+    return [train_df, test_df]
+
+def organize_variables(df, col_names, indicator, var_dict = None):
+    if var_dict is None:
+        var_dict = {'binary': [], 'tops': [], 'drop': [], 'ids': [], 'geo': [], 'multi': [], 'numeric': []}
+    
+    if indicator == 'binary':
+        var_dict[indicator] += col_names
+    elif indicator == 'multi':
+        var_dict[indicator] += col_names
+    elif indicator == 'numeric':
+        var_dict[indicator] += col_names
+    elif indicator == 'geo':
+        var_dict[indicator] += col_names
+    elif indicator == 'ids':
+        var_dict[indicator] += col_names
+    elif indicator == 'tops':
+        var_dict[indicator] += col_names
+    elif indicator == 'drop':
+        var_dict[indicator] += col_names
+    
+    return var_dict
+
+
 
