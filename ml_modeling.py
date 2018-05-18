@@ -40,7 +40,7 @@ def split_data(df, outcome_var, geo_columns, test_size, seed = None):
 
 def temporal_train_test_split(df, outcome_var, exclude = []):
     skips = [outcome_var] + exclude
-    Xs = train.drop(skips, axis = 1)
+    Xs = df.drop(skips, axis = 1)
     Ys = df[outcome_var]
     return (Xs, Ys)
 
