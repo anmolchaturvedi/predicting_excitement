@@ -5,7 +5,9 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 import graphviz 
 from sklearn.metrics import accuracy_score as accuracy
+from sklearn.metrics import f1_score, precision_score, recall_score, f1_score
 
+NOTEBOOK = 1
 
 def split_data(df, outcome_var, geo_columns, test_size, seed = None):
     '''
@@ -32,28 +34,40 @@ def split_data(df, outcome_var, geo_columns, test_size, seed = None):
 
 
 def loop_multiple_classifiers(training_predictors, testing_predictors,
-         training_outcome, testing_outcome, param_dict = None, ):
+         training_outcome, testing_outcome, param_dict = None, set_num = None):
+    '''
+    Attribution: Adapted from Rayid Ghani magicloop and simpleloop examples
+    https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
+    '''
     classifier_type = {
         "Logistic Regression": LogisticRegression(),
-        "KNN": KNeighborsClassifier(),
-        "Decision Tree": DecisionTreeClassifier(),
-        "SVM": svm.SVC(),
-        "Naive Bayes": GaussianNB(),
-        "Random Forest": RandomForestClassifier()
+        # "KNN": KNeighborsClassifier(penalty='l1', C=1e5),
+        # "Decision Tree": DecisionTreeClassifier(),
+        # "SVM": svm.SVC(),
+        # "Naive Bayes": GaussianNB(),
+        # "Random Forest": RandomForestClassifier()
+        # 'AdaBoost': AdaBoostClassifier(DecisionTreeClassifier(max_depth=1), algorithm="SAMME", n_estimators=200),
+        # 'Bagging': BaggingClassifier(base_estimator=LogisticRegression(penalty='l1', C=1e5))
     }
 
 
-    # need to add bagging and boosting!! 
+    results_df =  pd.DataFrame(columns=('model_type','clf', 'parameters', 'baseline_precision',
+                                    'baseline_recall','auc-roc', 'f1', 'p_at_1', 'r_at_1',
+                                    'p_at_2', 'r_at_2', 'p_at_5', 'r_at_5', 'p_at_10', 
+                                    'r_at_10','p_at_20','r_at_20','p_at_30','r_at_30', 'p_at_50', 'r_at_50'))
+                                    
 
     if param_dict is None:
     # define parameters to loop over. Thanks to the DSSG team for the recommendations!
         param_dict = {
         "Logistic Regression": { 'penalty': ['l1','l2'], 'C': [0.00001,0.001,0.1,1,10], 'random_state':[1008]},
-        'KNN' :{'n_neighbors': [1,5,10,25,50,100],'weights': ['uniform','distance'],'algorithm': ['auto','ball_tree','kd_tree']},
-        "Decision Tree": {'criterion': ['gini', 'entropy'], 'max_depth': [1,5,10,20,50,100], 'max_features': [None, 'sqrt','log2'],'min_samples_split': [2,5,10], 'random_state':[1008]},
-        'SVM' :{'C' :[0.00001,0.0001,0.001,0.01,0.1,1,10],'kernel':['linear'], 'probability':[True, False], 'random_state':[1008]},
-        "Naive Bayes": {},
-        "Random Forest": {'n_estimators': [100, 10000], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs':[-1], 'random_state':[1008]},
+        # 'KNN' :{'n_neighbors': [1,5,10,25,50,100],'weights': ['uniform','distance'],'algorithm': ['auto','ball_tree','kd_tree']},
+        # "Decision Tree": {'criterion': ['gini', 'entropy'], 'max_depth': [1,5,10,20,50,100], 'max_features': [None, 'sqrt','log2'],'min_samples_split': [2,5,10], 'random_state':[1008]},
+        # 'SVM' :{'C' :[0.00001,0.0001,0.001,0.01,0.1,1,10],'kernel':['linear'], 'probability':[True, False], 'random_state':[1008]},
+        # "Naive Bayes": {},
+        # "Random Forest": {'n_estimators': [100, 10000], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs':[-1], 'random_state':[1008]},
+        # "AdaBoost": { 'algorithm': ['SAMME', 'SAMME.R'], 'n_estimators': [1,10,100,1000,10000]},
+        # "Bagging": {base_estimator=LogisticRegression(penalty='l1', C=1e)}
                }
 
     for name, classifier in classifier_type.items():
@@ -82,15 +96,125 @@ def loop_multiple_classifiers(training_predictors, testing_predictors,
             # retain column associated with outcome of interest (1)
             test_pred = test_pred[:,1]
 
-            sklearn.metrics.f1_score(testing_outcome, test_pred, average='macro')
-            # run evaluation metrics on the model
+            y_pred_probs_sorted, y_test_sorted = joint_sort_descending(np.array(test_pred), np.array(testing_outcome))
+            results_df.loc[len(results_df)] = [name, clf, args, precision_at_k(y_test_sorted, y_pred_probs_sorted, 100.0), 
+                recall_at_k(y_test_sorted, y_pred_probs_sorted, 100.0), roc_auc_score(testing_outcome, test_pred),
+                precision_at_k(y_test_sorted,y_pred_probs_sorted,1.0), recall_at_k(y_test_sorted,y_pred_probs_sorted,1.0),
+                f1_at_k(y_test_sorted,y_pred_probs_sorted,1.0),
+                precision_at_k(y_test_sorted,y_pred_probs_sorted,2.0), recall_at_k(y_test_sorted,y_pred_probs_sorted,2.0), 
+                f1_at_k(y_test_sorted,y_pred_probs_sorted,2.0),
+                precision_at_k(y_test_sorted,y_pred_probs_sorted,5.0), recall_at_k(y_test_sorted,y_pred_probs_sorted,5.0),  
+                f1_at_k(y_test_sorted,y_pred_probs_sorted,5.0),
+                precision_at_k(y_test_sorted,y_pred_probs_sorted,10.0), recall_at_k(y_test_sorted,y_pred_probs_sorted,10.0),  
+                f1_at_k(y_test_sorted,y_pred_probs_sorted,10.0),
+                precision_at_k(y_test_sorted,y_pred_probs_sorted,20.0), recall_at_k(y_test_sorted,y_pred_probs_sorted,20.0),  
+                f1_at_k(y_test_sorted,y_pred_probs_sorted,30.0),
+                precision_at_k(y_test_sorted,y_pred_probs_sorted,30.0), recall_at_k(y_test_sorted,y_pred_probs_sorted,30.0),  
+                f1_at_k(y_test_sorted,y_pred_probs_sorted,50.0),
+                precision_at_k(y_test_sorted,y_pred_probs_sorted,50.0), recall_at_k(y_test_sorted,y_pred_probs_sorted,50.0)]
 
-            # predict_proba: KNN, SVM, LR
+            if NOTEBOOK == 1:
+                plot_precision_recall_n(testing_outcome, test_pred, model_name)
+
+    return results_df
+
+            
+            
 
 
-            # store in data frame
+def generate_binary_at_k(test_pred, k):
+    '''
+    Attribution: Rayid Ghani, https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
+    '''
+    cutoff_index = int(len(test_pred) * (k / 100.0))
+    predictions_binary = [1 if x < cutoff_index else 0 for x in range(len(test_pred))]
+    return predictions_binary
 
 
+def joint_sort_descending(l1, l2):
+    '''
+    Attribution: Adapted from code by Rayid Ghani, https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
+    '''
+    # l1 and l2 have to be numpy arrays
+    if not isinstance(l1, (np.ndarray)):
+        l1 = np.array(l1)
+    if not isinstance(l2, (np.ndarray)):
+        l1 = np.array(l2)
+
+    idx = np.argsort(l1)[::-1]
+    return l1[idx], l2[idx]
+
+
+def precision_at_k(testing_outcome, test_pred, k):
+    '''
+    Attribution: Rayid Ghani, 
+    https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
+    '''
+
+    y_scores_sorted, y_true_sorted = joint_sort_descending(np.array(test_pred), np.array(testing_outcome))
+    preds_at_k = generate_binary_at_k(y_scores_sorted, k)
+    #precision = precision[1]  # only interested in precision for label 1
+    precision = precision_score(y_true_sorted, preds_at_k)
+    return precision
+
+def f1_at_k(testing_outcome, test_pred, k):
+    '''
+    Attribution: Adapted from prediction and recoll score calculation by Rayid Ghani,
+    https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
+    '''
+
+    y_scores_sorted, y_true_sorted = joint_sort_descending(np.array(test_pred), np.array(testing_outcome))
+    preds_at_k = generate_binary_at_k(y_scores_sorted, k)
+    #precision = precision[1]  # only interested in precision for label 1
+    f1 = f1_score(y_true_sorted, preds_at_k)
+    return f1
+
+def recall_at_k(testing_outcome, test_pred, k):
+    '''
+    Attribution: Rayid Ghani, 
+    https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
+    '''
+    y_scores_sorted, y_true_sorted = joint_sort_descending(np.array(test_pred), np.array(testing_outcome))
+    preds_at_k = generate_binary_at_k(y_scores_sorted, k)
+    #precision = precision[1]  # only interested in precision for label 1
+    recall = recall_score(y_true_sorted, preds_at_k)
+    return recall
+
+
+
+def plot_precision_recall_n(testing_outcome, test_pred, model_name):
+    '''
+    Attribution: Rayid Ghani, 
+    https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
+    '''
+    from sklearn.metrics import precision_recall_curve
+    precision_curve, recall_curve, pr_thresholds = precision_recall_curve(testing_outcome, test_pred)
+    precision_curve = precision_curve[:-1]
+    recall_curve = recall_curve[:-1]
+    pct_above_per_thresh = []
+    number_scored = len(test_pred)
+    for value in pr_thresholds:
+        num_above_thresh = len(test_pred[test_pred>=value])
+        pct_above_thresh = num_above_thresh / float(number_scored)
+        pct_above_per_thresh.append(pct_above_thresh)
+    pct_above_per_thresh = np.array(pct_above_per_thresh)
+    
+    plt.clf()
+    fig, ax1 = plt.subplots()
+    ax1.plot(pct_above_per_thresh, precision_curve, 'b')
+    ax1.set_xlabel('percent of population')
+    ax1.set_ylabel('precision', color='b')
+    ax2 = ax1.twinx()
+    ax2.plot(pct_above_per_thresh, recall_curve, 'r')
+    ax2.set_ylabel('recall', color='r')
+    ax1.set_ylim([0,1])
+    ax1.set_ylim([0,1])
+    ax2.set_xlim([0,1])
+    
+    name = model_name
+    plt.title(name)
+    #plt.savefig(name)
+    plt.show()
 
 def loop_dt(param_dict, training_predictors, testing_predictors, 
                 training_outcome, testing_outcome):

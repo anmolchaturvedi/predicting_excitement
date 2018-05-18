@@ -28,7 +28,7 @@ def view_dist(df, geo_columns = True, fig_size=(20,15), labels = None):
 
 
 
-def check_corr(df, geo_columns = True):
+def check_corr(df, geo_columns = True, cat_cols = None):
     '''
    Display heatmap of linear correlation between non-categorical columns in a 
    given dataframe
@@ -41,26 +41,48 @@ def check_corr(df, geo_columns = True):
     Attribution: Colormap Attribution: adapted from gradiated dataframe at 
     https://www.datascience.com/blog/introduction-to-correlation-learn-data-science-tutorials and correlation heatmap at https://stackoverflow.com/questions/29432629/correlation-matrix-using-pandas
     '''
-    non_categoricals = isolate_categoricals(df, categoricals_fcn = is_category, 
-        ret_categoricals = False, geos_indicator = geo_columns)
+    try:
+        non_categoricals = isolate_categoricals(df, categoricals_fcn = is_category, 
+            ret_categoricals = False, geos_indicator = geo_columns)
 
-    fig, ax = plt.subplots(figsize=(12, 12))
-    corr = df[non_categoricals].corr(method="pearson")
-    sns.heatmap(corr, mask=np.zeros_like(corr, dtype=np.bool), 
-                cmap=plt.get_cmap("coolwarm"), square=True, ax=ax, annot=True)
+        fig, ax = plt.subplots(figsize=(12, 12))
+        corr = df[non_categoricals].corr(method="pearson")
+        sns.heatmap(corr, mask=np.zeros_like(corr, dtype=np.bool), 
+                    cmap=plt.get_cmap("coolwarm"), square=True, ax=ax, annot=True)
+        
+        ax.set_xticks(range(len(non_categoricals)))
+        ax.set_yticks(range(len(non_categoricals)))
+
+        ax.tick_params(direction='inout')
+        ax.set_xticklabels(non_categoricals, rotation=45, ha='right')
+        ax.set_yticklabels(non_categoricals, rotation=45, va='top')
+        plt.title('Feature Correlation')
+        plt.show()
     
-    ax.set_xticks(range(len(non_categoricals)))
-    ax.set_yticks(range(len(non_categoricals)))
+    except:
+        if cat_cols:
+            cat_df = df[df.columns]
+            
+            for col in cat_cols:
+                cat_df[col] = cat_df[col].astype('categorical')
 
-    ax.tick_params(direction='inout')
-    ax.set_xticklabels(non_categoricals, rotation=45, ha='right')
-    ax.set_yticklabels(non_categoricals, rotation=45, va='top')
-    plt.title('Feature Correlation')
-    plt.show()
+            fig, ax = plt.subplots(figsize=(12, 12))
+            corr = cat_df.corr(method="pearson")
+            sns.heatmap(corr, mask=np.zeros_like(corr, dtype=np.bool), 
+                        cmap=plt.get_cmap("coolwarm"), square=True, ax=ax, annot=True)
+            
+            ax.set_xticks(range(len(cat_df.columns)))
+            ax.set_yticks(range(len(cat_df.columns)))
+
+            ax.tick_params(direction='inout')
+            ax.set_xticklabels(cat_df.columns, rotation=45, ha='right')
+            ax.set_yticklabels(cat_df.columns, rotation=45, va='top')
+            plt.title('Feature Correlation')
+            plt.show()
 
 
 
-def discretize_cols(df, num_bins, geo_columns=True):
+def discretize_cols(df, num_bins, geo_columns=True, specific_cols = False, split = False):
     '''
     Add columns to discretize and classify non-categorical columns in a given 
     data frame
@@ -72,21 +94,57 @@ def discretize_cols(df, num_bins, geo_columns=True):
         num_bins: number of groups into which column values should be 
             discretized
     '''
-    non_categoricals = isolate_categoricals(df, categoricals_fcn = is_category, 
-        ret_categoricals = False, geos_indicator = geo_columns)
+    if specific_cols:
+        non_categoricals = specific_cols
+    else:
+        non_categoricals = isolate_categoricals(df, 
+            categoricals_fcn = is_category, ret_categoricals = False, 
+            geos_indicator = geo_columns)
    
     for col in non_categoricals:
         bin_col = col + "_bin"
         if col == "age":
             age_bins = math.ceil((df[col].max() - df[col].min()) / 10)
-            df[bin_col] = pd.cut(df[col], bins = age_bins, right = False, 
-                                    precision=0)
+
+            if split:
+                df[bin_col], train_bins = pd.cut(df[col], bins = age_bins, 
+                    right = False, precision=0, retbins=split)
+            else:
+                df[bin_col] = pd.cut(df[col], bins = age_bins, right = False, 
+                    precision=0, retbins=split)
         else:
-            try:
-                df[bin_col] = pd.cut(df[col], bins = num_bins, precision=0)
-            except:
-                df[bin_col] = pd.cut(df[col], bins = num_bins + 3, 
-                                        precision=0, duplicates = 'drop')
+            if split:
+                df[bin_col], train_bins = pd.cut(df[col], bins = num_bins, 
+                    precision=0, retbins=split)
+            else:
+                df[bin_col] = pd.cut(df[col], bins = num_bins, precision=0, 
+                    retbins=split)
+    if split:
+        return train_bins
+
+
+
+
+
+def discretize_train_test(train_test_tuples, still_blanks):
+    for i, (train, test) in enumerate(train_test_tuples):
+        fill_cols = still_blanks[i]
+        for col in fill_cols:
+            grouped = col + '_bin'
+            train[grouped], train_bins = pd.cut(train[col], bins = 4, precision = 0, retbins = True)
+            test[grouped] = pd.cut(test[col], bins = train_bins, precision = 0)
+
+
+def confirm_train_test_discretization(train_test_tuples, still_blanks):
+    for i, (train, test) in enumerate(train_test_tuples):
+        for col in still_blanks[i]:
+            grouped = col
+            grouped = col + '_bin'
+            print("set {} {} train: {}.".format(i, col, train[grouped].unique()))
+            print()
+            print("set {} {} test: {}.".format(i, col, test[grouped].unique()))
+            print()
+        
 
 
 
@@ -233,4 +291,12 @@ def feature_by_geo(df, geo, expl_var, num_var, method = "median"):
     geo_features.fillna(value = "", inplace = True)
     return geo_features
 
+
+
+def plot_top_distros(train_test_tuples, var_dict, set_num):
+    for i, col in enumerate(var_dict['tops']):
+        train, test = train_test_tuples[set_num]
+        plot_title = "Projects by {} for Training Set {}".format(col, set_num)
+        train[col].value_counts().sort_index().plot(kind='bar', title = plot_title)
+        plt.show()
 

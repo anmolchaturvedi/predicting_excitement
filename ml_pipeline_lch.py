@@ -41,6 +41,18 @@ def print_null_freq(df, blanks_only = False):
     else: 
         return all_rows
 
+def still_blank(train_test_tuples):
+    '''
+    Check for remaining null values after dummy variable creation is complete.
+    '''
+    to_impute = []
+    for train, test in train_test_tuples:
+        with_blanks = print_null_freq(train, blanks_only = True)
+        print(with_blanks)
+        print()
+        to_impute.append(list(with_blanks.index))
+    return to_impute
+
 
 def create_col_ref(df):
     '''
@@ -177,7 +189,7 @@ def remove_dramatic_outliers(df, col, threshold, max = True):
 
 
 
-def basic_fill_vals(df, col_name, method = None, replace_with = None):
+def basic_fill_vals(df, col_name, test_df = None, method = None, replace_with = None):
     '''
     For columns with more easily predicatable null values, fill with mean, median, or zero
 
@@ -189,15 +201,19 @@ def basic_fill_vals(df, col_name, method = None, replace_with = None):
     '''
     if method == "zeros":
         df[col_name] = df[col_name].fillna(0)
+    elif method == "replace":
+        replacement_val = replace_with
+        df[col_name] = df[col_name].fillna(replacement_val)
     elif method == "median":
         replacement_val = df[col_name].median()
         df[col_name] = df[col_name].fillna(replacement_val)
     elif method == "mean":
         replacement_val = df[col_name].mean()
         df[col_name] = df[col_name].fillna(replacement_val)
-    elif method == "replace":
-        replacement_val = replace_with
-        df[col_name] = df[col_name].fillna(replacement_val)
+
+    # if imputing train-test set, fill test data frame with same values
+    if test_df:
+        test_df[col_name] = test_df[col_name].fillna(replacement_val)
 
 
 
@@ -244,7 +260,7 @@ def replace_dummies(df, cols_to_dummy):
 
 
 
-def isolate_categoricals(df, categoricals_fcn, ret_categoricals = False, geos_indicator = True):
+def isolate_categoricals(df, categoricals_fcn, ret_categoricals = False, keyword = None, geos_indicator = True):
     '''
     Retrieve list of cateogrical or non-categorical columns from a given dataframe
 
@@ -258,8 +274,8 @@ def isolate_categoricals(df, categoricals_fcn, ret_categoricals = False, geos_in
 
     Outputs: list of column names from data frame
     '''
-    categorical = [col for col in df.columns if categoricals_fcn(col, geos = geos_indicator)]
-    non_categorical = [col for col in df.columns if not categoricals_fcn(col, geos = geos_indicator)]
+    categorical = [col for col in df.columns if categoricals_fcn(col, flag = keyword, geos = geos_indicator)]
+    non_categorical = [col for col in df.columns if not categoricals_fcn(col, flag = keyword, geos = geos_indicator)]
     
     if ret_categoricals:
         return categorical
@@ -281,6 +297,9 @@ def record_nulls(df):
         df[title] = df[col].isnull().astype(int)
     df = df.loc[:, (df != 0).any(axis=0)]
 
+
+def drop_unwanted(df, drop_list):
+    df.drop(drop_list, axis = 1, inplace = True)
 
 
 def organize_variables(df, col_names, indicator, var_dict = None):
@@ -367,12 +386,13 @@ def determine_top_dummies(train_test_tuples, var_dict, threshold, max_options = 
     set_distro_dummies = []
     counter = 1
     for train, test in train_test_tuples:
-        print("starting set {}..."format(counter))
+        print("starting set {}...".format(counter))
         dummies_dict = {}
         for col in train[var_dict['tops']]:
             print("col: ", col)
             col_sum = train[col].value_counts().sum()
             top = train[col].value_counts().nlargest(max_options)
+            
             top_value = 0
             num_dummies = 0
 
@@ -380,7 +400,7 @@ def determine_top_dummies(train_test_tuples, var_dict, threshold, max_options = 
                 top_value += top[num_dummies]
                 num_dummies += 1
             print("Keeping top {} values.".format(num_dummies, (top_value / col_sum)))
-
+            print()
             keep_dummies = list(top.index)[:num_dummies]
             dummies_dict[col] = keep_dummies
             
@@ -403,12 +423,26 @@ def lower_vals_to_other(set_specific_dummies, train_test_tuples):
 
 
 
-    def plot_top_distros(train_test_tuples, var_dict, set_num):
-    for i, col in enumerate(var_dict['tops']):
-        train, test = train_test_tuples[set_num]
-        plot_title = "Projects by {} for Training Set {}".format(col, set_num)
-        train[col].value_counts().sort_index().plot(kind='bar', title = plot_title)
-        plt.show()
 
 
+def replace_set_specific_dummies(train_test_tuples, to_dummies):
+    augmented_sets = []
+    for i, (train, test) in enumerate(train_test_tuples):
+        print("Starting set {}...".format(i))
+        print(train.shape)
+        print(test.shape)
+        print("new shapes")
+        train = replace_dummies(train, to_dummies)
+        print(train.shape)
+        test = replace_dummies(test, to_dummies)
+        print(test.shape)
+        print()
+        augmented_sets.append((train, test))
+    return augmented_sets
+        
 
+def convert_geos(train_test_tuples, geo_cols):
+    for train, test in train_test_tuples:
+        for col in geo_cols:
+            train[col] = train[col].astype('category')
+            test[col] = test[col].astype('category')
