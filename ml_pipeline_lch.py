@@ -446,3 +446,21 @@ def convert_geos(train_test_tuples, geo_cols):
         for col in geo_cols:
             train[col] = train[col].astype('category')
             test[col] = test[col].astype('category')
+
+
+
+
+def dummies_tt_timeporal(train_test_tuples, replace):
+    updates = []
+    for train, test in train_test_tuples:
+        cats_train = ml.isolate_categoricals(train, ml.is_category, ret_categoricals = True, geos_indicator = False)
+        train = pd.get_dummies(train, columns = cats_train, dummy_na = True)
+        
+        cats_test = ml.isolate_categoricals(train, ml.is_category, ret_categoricals = True, geos_indicator = False)
+        test = pd.get_dummies(train, columns = cats_test, dummy_na = True)
+        updates.append((train, test))
+        
+    return updates
+
+
+

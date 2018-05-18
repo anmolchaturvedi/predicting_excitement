@@ -1,11 +1,16 @@
 import pandas as pd
 import itertools
 import sklearn
+from sklearn import preprocessing, svm, metrics, tree, decomposition
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, BaggingClassifier
+from sklearn.linear_model import LogisticRegression, Perceptron, OrthogonalMatchingPursuit, RandomizedLogisticRegression
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
 import graphviz 
 from sklearn.metrics import accuracy_score as accuracy
-from sklearn.metrics import f1_score, precision_score, recall_score, f1_score
+from sklearn.metrics import f1_score, precision_score, recall_score, f1_score, roc_auc_score
 
 NOTEBOOK = 1
 
@@ -33,6 +38,13 @@ def split_data(df, outcome_var, geo_columns, test_size, seed = None):
     return train_test_split(X, Y, test_size = test_size, random_state = seed)
 
 
+def temporal_train_test_split(df, outcome_var, exclude = []):
+    skips = [outcome_var] + exclude
+    Xs = train.drop(skips, axis = 1)
+    Ys = df[outcome_var]
+    return (Xs, Ys)
+
+
 def loop_multiple_classifiers(training_predictors, testing_predictors,
          training_outcome, testing_outcome, param_dict = None, set_num = None):
     '''
@@ -40,7 +52,8 @@ def loop_multiple_classifiers(training_predictors, testing_predictors,
     https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
     '''
     classifier_type = {
-        "Logistic Regression": LogisticRegression(),
+        "Logistic Regression": LogisticRegression()
+    }
         # "KNN": KNeighborsClassifier(penalty='l1', C=1e5),
         # "Decision Tree": DecisionTreeClassifier(),
         # "SVM": svm.SVC(),
@@ -48,7 +61,7 @@ def loop_multiple_classifiers(training_predictors, testing_predictors,
         # "Random Forest": RandomForestClassifier()
         # 'AdaBoost': AdaBoostClassifier(DecisionTreeClassifier(max_depth=1), algorithm="SAMME", n_estimators=200),
         # 'Bagging': BaggingClassifier(base_estimator=LogisticRegression(penalty='l1', C=1e5))
-    }
+    
 
 
     results_df =  pd.DataFrame(columns=('model_type','clf', 'parameters', 'baseline_precision',
@@ -70,9 +83,11 @@ def loop_multiple_classifiers(training_predictors, testing_predictors,
         # "Bagging": {base_estimator=LogisticRegression(penalty='l1', C=1e)}
                }
 
-    for name, classifier in classifier_type.items():
+    for name, classf in classifier_type.items():
         # create dictionaries for each possible tuning option specified 
         # in param_dict
+        print("name", name)
+        print("classf", classf)
         options = param_dict[name] 
         tuners = list(options.keys())
         list_params = list(itertools.product(*options.values()))
@@ -81,20 +96,21 @@ def loop_multiple_classifiers(training_predictors, testing_predictors,
         for params in list_params:
             kwargs_dict = dict(zip(tuners, params))
             all_model_params.append(kwargs_dict)
-
+            print("all_model_params", all_model_params)
         # create all possible models using tuners in dictionaries created 
         # above
         for args in all_model_params:
-            clf = classifier(**args)
+            print("args", args)
+            
+            classf.set_params(**args)
 
-            clf.fit(training_predictors, training_outcome)
+            classf.fit(training_predictors, training_outcome)
 
-            train_pred = clf.predict_proba(training_predictors)
-            train_pred = train_pred[:,1]
 
-            test_pred = clf.predict_proba(testing_predictors)
-            # retain column associated with outcome of interest (1)
-            test_pred = test_pred[:,1]
+            # retain only column associated with outcome of interest (1)
+            train_pred = classf.predict_proba(training_predictors)[:,1]
+            test_pred = classf.predict_proba(testing_predictors)[:,1]
+
 
             y_pred_probs_sorted, y_test_sorted = joint_sort_descending(np.array(test_pred), np.array(testing_outcome))
             results_df.loc[len(results_df)] = [name, clf, args, precision_at_k(y_test_sorted, y_pred_probs_sorted, 100.0), 
