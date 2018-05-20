@@ -2,6 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.DS_Store
+
+# datafiles
+data/
 
 # C extensions
 *.so
@@ -90,6 +94,8 @@ ENV/
 env.bak/
 venv.bak/
 .excite/
+.excitement/
+
 
 # Spyder project settings
 .spyderproject
