@@ -3,6 +3,7 @@ import numpy as np
 import re
 from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
+from collections import defaultdict
 
 def retrieve_data(filename, headers = False, set_ind = None):
     '''
@@ -256,6 +257,48 @@ def is_category(col_name, flag = None, geos = True):
 
     return re.search(search_for, col_name)
 
+
+def summarize_df(df):
+    type_dict = defaultdict(list)
+    geos = ["city", "state", "county", "country", "zip", "zipcode", "latitude", "longitude"]
+    geos = "|".join(geos)
+    summary = pd.DataFrame(columns = ["col_name", "num_values", "data_type", "col_type", "num_nulls", "unique_values", "most_common"])
+    for col in df.columns:
+        num_values = df[col].shape[0]
+        no_nulls = len(df[df[col].notnull()][col].unique())
+        nulls = df[df[col].isna()][col].shape[0]
+        most_common = list(df[col].mode())[0]
+        dtype = df[col].dtype
+        if re.search(geos, col):
+            col_type = "geo"
+            type_dict["geo"].append(col)
+        elif re.search("id|_id", col):
+            col_type = "ID"
+            type_dict["ID"].append(col)
+        elif df[col].dtype.kind in 'uifc':
+            col_type = "numeric"
+            type_dict["numeric"].append(col)
+        elif no_nulls == 1 or no_nulls == 2:
+            col_type = "binary"
+            type_dict["binary"].append(col)
+        elif no_nulls <= 6:
+            col_type = "multi"
+            type_dict["multi"].append(col)
+        elif no_nulls > 6:
+            col_type = "tops"
+            type_dict["tops"].append(col)
+        summary.loc[col] = [col, num_values, dtype, col_type, nulls, no_nulls, most_common]
+    
+    summary.set_index("col_name", inplace = True)
+    return summary, type_dict
+
+
+def recateogrize_col(col, new_category, col_dict):
+    for category, cols_list in col_dict.items():
+        if col in cols_list:
+            col_dict[category] = [column for column in cols_list if column != col]
+    col_dict[new_category].append(col)
+    return col_dict
 
 
 def replace_dummies(df, cols_to_dummy):
