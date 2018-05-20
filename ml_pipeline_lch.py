@@ -37,7 +37,10 @@ def print_null_freq(df, blanks_only = False):
     all_rows = pd.crosstab(df_lng.variable, null_variables)
         
     if blanks_only:
-        return all_rows[all_rows[True] > 0]
+        try:
+            return all_rows[all_rows[True] > 0]
+        except:
+            return False
     else: 
         return all_rows
 
@@ -212,7 +215,7 @@ def basic_fill_vals(df, col_name, test_df = None, method = None, replace_with = 
         df[col_name] = df[col_name].fillna(replacement_val)
 
     # if imputing train-test set, fill test data frame with same values
-    if test_df:
+    if test_df is not None:
         test_df[col_name] = test_df[col_name].fillna(replacement_val)
 
 
@@ -256,7 +259,7 @@ def is_category(col_name, flag = None, geos = True):
 
 
 def replace_dummies(df, cols_to_dummy):
-    return pd.get_dummies(df, columns = cols_to_dummy, dummy_na=True)
+    return pd.get_dummies(df, columns = cols_to_dummy , dummy_na=True)
 
 
 
@@ -423,8 +426,6 @@ def lower_vals_to_other(set_specific_dummies, train_test_tuples):
 
 
 
-
-
 def replace_set_specific_dummies(train_test_tuples, to_dummies):
     augmented_sets = []
     for i, (train, test) in enumerate(train_test_tuples):
@@ -432,14 +433,15 @@ def replace_set_specific_dummies(train_test_tuples, to_dummies):
         print(train.shape)
         print(test.shape)
         print("new shapes")
-        train = replace_dummies(train, to_dummies)
+        train_d = replace_dummies(train, to_dummies)
         print(train.shape)
-        test = replace_dummies(test, to_dummies)
+        test_d = replace_dummies(test, to_dummies)
         print(test.shape)
         print()
-        augmented_sets.append((train, test))
+        augmented_sets.append((train_d, test_d))
     return augmented_sets
         
+
 
 def convert_geos(train_test_tuples, geo_cols):
     for train, test in train_test_tuples:
@@ -453,10 +455,10 @@ def convert_geos(train_test_tuples, geo_cols):
 def dummies_tt_timeporal(train_test_tuples, replace):
     updates = []
     for train, test in train_test_tuples:
-        cats_train = ml.isolate_categoricals(train, ml.is_category, ret_categoricals = True, geos_indicator = False)
+        cats_train = isolate_categoricals(train, is_category, ret_categoricals = True, geos_indicator = False)
         train = pd.get_dummies(train, columns = cats_train, dummy_na = True)
         
-        cats_test = ml.isolate_categoricals(train, ml.is_category, ret_categoricals = True, geos_indicator = False)
+        cats_test = isolate_categoricals(train, is_category, ret_categoricals = True, geos_indicator = False)
         test = pd.get_dummies(train, columns = cats_test, dummy_na = True)
         updates.append((train, test))
         

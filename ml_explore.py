@@ -146,6 +146,17 @@ def confirm_train_test_discretization(train_test_tuples, still_blanks):
             print()
         
 
+def drop_tt_binned(train_test_tuples, to_drop):
+    '''
+    Drop columns from both train and test sets.
+    
+    Inputs:
+        train_test_tuples: list of tupled dataframes
+        to_drop: list of columns to drop
+    '''
+    for train, test in train_test_tuples:
+        train.drop(to_drop, axis = 1, inplace = True)
+        test.drop(to_drop, axis = 1, inplace = True)
 
 
 def create_binary_vars(df, cols_to_dummy, keyword_list):
