@@ -5,7 +5,7 @@ from itertools import chain
 import sklearn
 from sklearn import preprocessing, svm, metrics, tree, decomposition
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, BaggingClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, BaggingClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression, Perceptron, OrthogonalMatchingPursuit, RandomizedLogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
