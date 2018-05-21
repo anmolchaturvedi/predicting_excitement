@@ -19,13 +19,22 @@ def view_dist(df, geo_columns = True, fig_size=(20,15), labels = None):
     non_categoricals = isolate_categoricals(df, categoricals_fcn = is_category, ret_categoricals = False, geos_indicator = geo_columns)
     # non_categoricals = isolate_noncategoricals(df, ret_categoricals = False, 
     #                                             geo_cols = geo_columns)
-    df[non_categoricals].hist(bins = 20, figsize=fig_size, color = 'blue')
+    df[non_categoricals].hist(bins = 10, figsize=fig_size, color = 'blue')
     if labels:
         plt.title(labels[0])
         plt.xlabel(labels[1])
         plt.ylabel(labels[2])
     plt.show()
 
+
+def plot_value_counts(df, type_dict, category):
+    for col in type_dict[category]:
+        plot_title = col + " distribution"
+        df[col].value_counts().plot(kind='bar')
+        plt.title(plot_title)
+        plt.xlabel = col
+        plt.ylabel = "frequency"
+        plt.show()
 
 
 def check_corr(df, geo_columns = True, cat_cols = None):

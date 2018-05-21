@@ -73,12 +73,12 @@ def develop_args(name, params_dict):
 
     
 
-def cf_loop(pred_train, label_train, pred_test, label_test, ks = [5, 10, 20], params_dict = None, plot = False, which_clfs = None):
+def cf_loop(pred_train, label_train, pred_test, label_test, set_num, ks = [5, 10, 20], params_dict = None, plot = False, which_clfs = None):
     '''
     Attribution: Adapted from Rayid Ghani's magicloop and simpleloop examples
     https://github.com/rayidghani/magicloops/blob/master/mlfunctions.py
     '''
-    result_cols = ['model_type','clf', 'parameters', 'baseline_precision',
+    result_cols = ['set_num', 'model_type','clf', 'parameters', 'baseline_precision',
                 'baseline_recall','auc-roc']
     
     # define columns for metrics at each threshold specified in function call
@@ -88,14 +88,15 @@ def cf_loop(pred_train, label_train, pred_test, label_test, ks = [5, 10, 20], pa
     results_df =  pd.DataFrame(columns=result_cols)
 
     all_clfs = {
-          'DecisionTree': DecisionTreeClassifier(),
-          'LogisticRegression': LogisticRegression(penalty='l1', C=1e5),
-          'Bagging': BaggingClassifier(base_estimator=LogisticRegression(penalty='l1', C=1e5)),
-            'SVM': svm.SVC(kernel='linear', probability=True, random_state=0),
-            'AdaBoost': AdaBoostClassifier(DecisionTreeClassifier(max_depth=1), algorithm="SAMME", n_estimators=200),
-            'NaiveBayes': GaussianNB(),
-            "RandomForest": RandomForestClassifier(n_estimators=50, n_jobs=-1),
-            "KNN": KNeighborsClassifier(n_neighbors=3) 
+        'DecisionTree': DecisionTreeClassifier(),
+        'LogisticRegression': LogisticRegression(penalty='l1', C=1e5),
+        'Bagging': BaggingClassifier(base_estimator=LogisticRegression(penalty='l1', C=1e5)),
+        'SVM': svm.SVC(kernel='linear', probability=True, random_state=0),
+        'AdaBoost': AdaBoostClassifier(DecisionTreeClassifier(max_depth=1), algorithm="SAMME", n_estimators=200),
+        'GradientBoosting': GradientBoostingClassifier(learning_rate=0.05, subsample=0.5, max_depth=6, n_estimators=10),
+        'NaiveBayes': GaussianNB(),
+        "RandomForest": RandomForestClassifier(n_estimators=50, n_jobs=-1),
+        'KNN': KNeighborsClassifier(n_neighbors=3) 
     }
     
     if which_clfs:
@@ -111,6 +112,7 @@ def cf_loop(pred_train, label_train, pred_test, label_test, ks = [5, 10, 20], pa
             "Bagging": {},
             "SVM": {'C' :[0.01],'kernel':['linear']},
             "AdaBoost": { 'algorithm': ['SAMME'], 'n_estimators': [1]},
+            'GradientBoosting': {'n_estimators': [1], 'learning_rate' : [0.1],'subsample' : [0.5], 'max_depth': [1]},
             'NaiveBayes' : {},
             "RandomForest": {'n_estimators': [100, 10000], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs':[-1], 'random_state':[1008]},
             "KNN": {'n_neighbors': [5],'weights': ['uniform'],'algorithm': ['auto']}
@@ -132,9 +134,9 @@ def cf_loop(pred_train, label_train, pred_test, label_test, ks = [5, 10, 20], pa
 
                 y_pred_probs_sorted, y_test_sorted = mp.joint_sort_descending(np.array(y_pred_probs), np.array(label_test))
                 
-                print("Evaluating {} models".format(name))
+                # print("Evaluating {} models".format(name))
             
-                results_list = [name, clf, args, mp.precision_at_k(y_test_sorted, y_pred_probs_sorted, 100.0), 
+                results_list = [set_num, name, clf, args, mp.precision_at_k(y_test_sorted, y_pred_probs_sorted, 100.0), 
                 mp.recall_at_k(y_test_sorted, y_pred_probs_sorted, 100.0), roc_auc_score(label_test, y_pred_probs)]
                 
                 for threshold in ks: 
@@ -148,6 +150,7 @@ def cf_loop(pred_train, label_train, pred_test, label_test, ks = [5, 10, 20], pa
 
             except Exception as e:
                 print("Error {} on model {} with parameters {}".format(e, name, args))
+                print()
                 continue
 
     return results_df

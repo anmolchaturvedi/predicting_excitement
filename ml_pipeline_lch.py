@@ -4,6 +4,7 @@ import re
 from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
 from collections import defaultdict
+from sklearn.preprocessing import MinMaxScaler, normalize
 
 def retrieve_data(filename, headers = False, set_ind = None):
     '''
@@ -44,6 +45,7 @@ def print_null_freq(df, blanks_only = False):
             return False
     else: 
         return all_rows
+
 
 def still_blank(train_test_tuples):
     '''
@@ -119,6 +121,22 @@ def convert_dates(date_series):
     '''
     dates = {date:pd.to_datetime(date) for date in date_series.unique()}
     return date_series.map(dates)
+
+
+def make_boolean(df, cols, value_1s, ints = True):
+    if ints:
+        true_val = 1
+        neg_val = 0
+    else:
+        true_val = True
+        neg_val = False
+        
+    for col in cols:
+        df.loc[df[col] != value_1s, col] = neg_val
+        df.loc[df[col] == value_1s, col] = true_val
+
+
+
 
 
 def view_max_mins(df, max = True):
@@ -204,20 +222,20 @@ def basic_fill_vals(df, col_name, test_df = None, method = None, replace_with = 
             Inputs can be "zeros", "median", or "mean"
     '''
     if method == "zeros":
-        df[col_name] = df[col_name].fillna(0)
+        df[col_name].fillna(0, inplace = True)
     elif method == "replace":
         replacement_val = replace_with
-        df[col_name] = df[col_name].fillna(replacement_val)
+        df[col_name].fillna(replacement_val, inplace = True)
     elif method == "median":
         replacement_val = df[col_name].median()
-        df[col_name] = df[col_name].fillna(replacement_val)
+        df[col_name].fillna(replacement_val, inplace = True)
     elif method == "mean":
         replacement_val = df[col_name].mean()
-        df[col_name] = df[col_name].fillna(replacement_val)
+        df[col_name].fillna(replacement_val, inplace = True)
 
     # if imputing train-test set, fill test data frame with same values
     if test_df is not None:
-        test_df[col_name] = test_df[col_name].fillna(replacement_val)
+        test_df[col_name].fillna(replacement_val, inplace = True)
 
 
 
@@ -225,14 +243,6 @@ def check_col_types(df):
     return pd.DataFrame(df.dtypes, df.columns).rename({0: 'data_type'}, axis = 1)
 
 
-def view_cols(df):
-    '''
-    View unique values across columns in given data frame.
-    '''
-    for col in df.columns:
-        print(col)
-        print(df[col].unique())
-        print()
 
 
 def is_category(col_name, flag = None, geos = True):
@@ -262,11 +272,13 @@ def summarize_df(df):
     type_dict = defaultdict(list)
     geos = ["city", "state", "county", "country", "zip", "zipcode", "latitude", "longitude"]
     geos = "|".join(geos)
-    summary = pd.DataFrame(columns = ["col_name", "num_values", "data_type", "col_type", "num_nulls", "unique_values", "most_common"])
+    summary = pd.DataFrame(columns = ["col_name", "num_values", "num_nulls", "unique_values",  "data_type", "col_type", "most_common"])
+    
+    print("Starting next train-test set...")
     for col in df.columns:
         num_values = df[col].shape[0]
-        no_nulls = len(df[df[col].notnull()][col].unique())
-        nulls = df[df[col].isna()][col].shape[0]
+        uniques = len(df[col].unique())
+        nulls = df[col].isnull().sum()
         most_common = list(df[col].mode())[0]
         dtype = df[col].dtype
         if re.search(geos, col):
@@ -275,19 +287,22 @@ def summarize_df(df):
         elif re.search("id|_id", col):
             col_type = "ID"
             type_dict["ID"].append(col)
+        elif df[col].dtype.str[1] == 'M':
+            col_type = "datetime"
+            type_dict["datetime"].append(col)
         elif df[col].dtype.kind in 'uifc':
             col_type = "numeric"
             type_dict["numeric"].append(col)
-        elif no_nulls == 1 or no_nulls == 2:
+        elif uniques == 1 or uniques == 2:
             col_type = "binary"
             type_dict["binary"].append(col)
-        elif no_nulls <= 6:
+        elif uniques <= 6:
             col_type = "multi"
             type_dict["multi"].append(col)
-        elif no_nulls > 6:
+        elif uniques > 6:
             col_type = "tops"
             type_dict["tops"].append(col)
-        summary.loc[col] = [col, num_values, dtype, col_type, nulls, no_nulls, most_common]
+        summary.loc[col] = [col, num_values, nulls, uniques, dtype, col_type, most_common]
     
     summary.set_index("col_name", inplace = True)
     return summary, type_dict
@@ -337,37 +352,9 @@ def change_col_name(df, current_name, new_name):
     df.columns = [new_name if col == current_name else col for col in df.columns]
 
 
-def record_nulls(df):
-    for col in list(df.columns):
-        title = col + "_was_null"
-        df[title] = df[col].isnull().astype(int)
-    df = df.loc[:, (df != 0).any(axis=0)]
-
 
 def drop_unwanted(df, drop_list):
     df.drop(drop_list, axis = 1, inplace = True)
-
-
-def organize_variables(df, col_names, indicator, var_dict = None):
-    if var_dict is None:
-        var_dict = {'binary': [], 'tops': [], 'drop': [], 'ids': [], 'geo': [], 'multi': [], 'numeric': []}
-    
-    if indicator == 'binary':
-        var_dict[indicator] += col_names
-    elif indicator == 'multi':
-        var_dict[indicator] += col_names
-    elif indicator == 'numeric':
-        var_dict[indicator] += col_names
-    elif indicator == 'geo':
-        var_dict[indicator] += col_names
-    elif indicator == 'ids':
-        var_dict[indicator] += col_names
-    elif indicator == 'tops':
-        var_dict[indicator] += col_names
-    elif indicator == 'drop':
-        var_dict[indicator] += col_names
-    
-    return var_dict
 
 
 
@@ -405,7 +392,9 @@ def time_series_split(df, date_col, train_size, test_size, increment = 'month', 
     train_df = new_df[(new_df[date_col] >= min_date) & (new_df[date_col] <= train_max)]
     test_df = new_df[(new_df[date_col] >= test_min) & (new_df[date_col] <= test_max)]
     
-    return [train_df, test_df]
+    date_refs = (min_date, train_max, test_min, test_max)
+
+    return train_df, test_df, date_refs
 
 
 
@@ -414,84 +403,188 @@ def create_expanding_splits(df, total_periods, dates, train_period_base, test_pe
     months_used = train_period_base
     
     tt_sets = []
+    set_dates = pd.DataFrame(columns = ("training_start", "training_period_end", "test_period_start", "test_period_end"))
     
     while months_used < total_periods:
         
         print("original train period lenth: {}".format(train_period_base))
-        train, test = time_series_split(df, date_col = dates, train_size = train_period_base, test_size = test_period_size, increment = period, specify_start = defined_start)
+        train, test, date_ref = time_series_split(df, date_col = dates, train_size = train_period_base, test_size = test_period_size, increment = period, specify_start = defined_start)
+        
         print("train: {}, test: {}".format(train.shape, test.shape))
         tt_sets.append((train, test))
         train_period_base += test_period_size
         months_used += test_period_size
-    
-    return tt_sets
+        set_dates.loc[len(set_dates)] = list(date_ref)
+
+    return (tt_sets, set_dates)
 
 
 
-def determine_top_dummies(train_test_tuples, var_dict, threshold, max_options = 10):
+# def determine_top_dummies(train_test_tuples, var_dict, threshold, max_options = 10):
+#     set_distro_dummies = []
+#     counter = 1
+#     for train, test in train_test_tuples:
+#         print("starting set {}...".format(counter))
+#         dummies_dict = {}
+#         for col in train[var_dict['tops']]:
+#             print("col: ", col)
+#             col_sum = train[col].value_counts().sum()
+#             top = train[col].value_counts().nlargest(max_options)
+            
+#             top_value = 0
+#             num_dummies = 0
+
+#             while ((top_value / col_sum) < threshold) & (num_dummies < max_options):
+#                 top_value += top[num_dummies]
+#                 num_dummies += 1
+#             print("Keeping top {} values.".format(num_dummies, (top_value / col_sum)))
+#             print()
+#             keep_dummies = list(top.index)[:num_dummies]
+#             dummies_dict[col] = keep_dummies
+            
+#         counter += 1
+#         set_distro_dummies.append(dummies_dict)
+
+#     return set_distro_dummies
+
+
+
+def train_top_dummies(train_df, tops_list, threshold, max_options = 10):
     set_distro_dummies = []
     counter = 1
-    for train, test in train_test_tuples:
-        print("starting set {}...".format(counter))
-        dummies_dict = {}
-        for col in train[var_dict['tops']]:
-            print("col: ", col)
-            col_sum = train[col].value_counts().sum()
-            top = train[col].value_counts().nlargest(max_options)
-            
-            top_value = 0
-            num_dummies = 0
+    dummies_dict = {}
 
-            while ((top_value / col_sum) < threshold) & (num_dummies < max_options):
-                top_value += top[num_dummies]
-                num_dummies += 1
-            print("Keeping top {} values.".format(num_dummies, (top_value / col_sum)))
-            print()
-            keep_dummies = list(top.index)[:num_dummies]
-            dummies_dict[col] = keep_dummies
-            
-        counter += 1
-        set_distro_dummies.append(dummies_dict)
+    for col in tops_list:
+        col_sum = train_df[col].value_counts().sum()
+        top = train_df[col].value_counts().nlargest(max_options)
+        
+        top_value = 0
+        num_dummies = 0
+
+        while ((top_value / col_sum) < threshold) & (num_dummies < max_options):
+            top_value += top[num_dummies]
+            num_dummies += 1
+
+        keep_dummies = list(top.index)[:num_dummies]
+        dummies_dict[col] = keep_dummies
+        
+    counter += 1
+    set_distro_dummies.append(dummies_dict)
 
     return set_distro_dummies
 
 
 
-def lower_vals_to_other(set_specific_dummies, train_test_tuples):
+
+# def lower_vals_to_other(set_specific_dummies, train_test_tuples):
+#     counter = 0
+#     for i, set_dict in enumerate(set_specific_dummies):
+#         print("starting set {}...".format(counter))
+#         counter += 1
+#         for col, vals in set_dict.items():
+#             train, test = train_test_tuples[i]
+#             train.loc[~train[col].isin(vals), col] = 'Other'
+#             test.loc[~test[col].isin(vals), col] = 'Other'
+
+
+
+def apply_tops(set_specific_dummies, var_dict, train_df, test_df):
     counter = 0
-    for i, set_dict in enumerate(set_specific_dummies):
-        print("starting set {}...".format(counter))
+    for set_dict in set_specific_dummies:
         counter += 1
         for col, vals in set_dict.items():
-            train, test = train_test_tuples[i]
-            train.loc[~train[col].isin(vals), col] = 'Other'
-            test.loc[~test[col].isin(vals), col] = 'Other'
+            train_df.loc[~train_df[col].isin(vals), col] = 'Other'
+            test_df.loc[~test_df[col].isin(vals), col] = 'Other'
 
 
 
-def replace_set_specific_dummies(train_test_tuples, to_dummies):
-    augmented_sets = []
-    for i, (train, test) in enumerate(train_test_tuples):
-        print("Starting set {}...".format(i))
-        print(train.shape)
-        print(test.shape)
-        print("new shapes")
-        train_d = replace_dummies(train, to_dummies)
-        print(train.shape)
-        test_d = replace_dummies(test, to_dummies)
-        print(test.shape)
-        print()
-        augmented_sets.append((train_d, test_d))
-    return augmented_sets
+
+
+# def replace_set_specific_dummies(train_test_tuples, to_dummies):
+#     augmented_sets = []
+#     for i, (train, test) in enumerate(train_test_tuples):
+#         print("Starting set {}...".format(i))
+#         print(train.shape)
+#         print(test.shape)
+#         print("new shapes")
+#         train_d = replace_dummies(train, to_dummies)
+#         print(train_d.shape)
+#         test_d = replace_dummies(test, to_dummies)
+#         print(test_d.shape)
+#         print()
+#         augmented_sets.append((train_d, test_d))
+#     return augmented_sets
         
 
 
-def convert_geos(train_test_tuples, geo_cols):
-    for train, test in train_test_tuples:
-        for col in geo_cols:
-            train[col] = train[col].astype('category')
-            test[col] = test[col].astype('category')
+def convert_geos(train_df, test_df, geo_cols):
+    for col in geo_cols:
+        train_df[col] = train[col].astype('category')
+        test_df[col] = test[col].astype('category')
 
+
+def iza_process(train_df, test_df, var_dict, tops_threshold = 0.5, binary = None, geos = False):
+    # for i, (train_df, test_df) in enumerate(dfs):
+    #     print("Starting set {}...".format(i))
+        
+    drop_unwanted(train_df, var_dict['datetime'])
+    drop_unwanted(test_df, var_dict['datetime'])
+    
+    if binary is not None:
+        make_boolean(train_df, var_dict['binary'], value_1s = binary)
+        make_boolean(test_df, var_dict['binary'], value_1s = binary)
+        print("Binary columns successfully converted.")
+
+    
+    train_df = replace_dummies(train_df, var_dict['multi'])
+    test_df = replace_dummies(test_df, var_dict['multi'])
+    
+    # print("Values in columns {} successfully converted to dummies".format(var_dict['multi']))
+
+    tops = train_top_dummies(train_df, var_dict['tops'], threshold = tops_threshold, max_options = 10)
+    apply_tops(tops, var_dict, train_df, test_df)
+    
+
+    train_df = pd.get_dummies(train_df, columns = var_dict['tops'], dummy_na = True)
+    test_df = pd.get_dummies(test_df, columns = var_dict['tops'], dummy_na = True)
+
+
+    # print("Top values in columns {} successfully converted to dummies".format(var_dict['tops']))
+
+
+    if geos:
+        geo_tops = train_top_dummies(train_df, var_dict['geo'], threshold = tops_threshold, max_options = 5)
+        apply_tops(geo_tops, var_dict, train_df, test_df)
+
+        train_df = pd.get_dummies(train_df, columns = var_dict['geo'], dummy_na = True)
+        test_df = pd.get_dummies(test_df, columns = var_dict['geo'], dummy_na = True)
+        
+        # print("Values in columns {} successfully converted to dummies".format(var_dict['geo']))
+    print("Converted nonbinary, non-numeric columns to dummies.")
+
+    
+    for col in var_dict['numeric']:
+        basic_fill_vals(train_df, col_name = col, test_df = test_df, method = 'mean')
+        train_df.loc[:, col] = normalize(pd.DataFrame(train_df[col]), axis = 0)
+        test_df.loc[:, col] = normalize(pd.DataFrame(test_df[col]), axis = 0)
+    print("Filled missing values and normalizied values in numeric columns.")
+
+    train_cols = set(train_df.columns)
+    test_cols = set(test_df.columns)
+
+    extra_train = train_cols - test_cols
+    extra_test = test_cols - train_cols
+
+    if len(extra_train) > 0:
+        for col in extra_train:
+            test_df[col] = 0
+
+    if len(extra_test) > 0:
+        for col in extra_test:
+            train_df[col] = 0
+
+    print("Moving to next set!")
+    return (train_df, test_df)
 
 
 
@@ -504,6 +597,7 @@ def dummies_tt_timeporal(train_test_tuples, replace):
         cats_test = isolate_categoricals(train, is_category, ret_categoricals = True, geos_indicator = False)
         test = pd.get_dummies(train, columns = cats_test, dummy_na = True)
         updates.append((train, test))
+
         
     return updates
 
