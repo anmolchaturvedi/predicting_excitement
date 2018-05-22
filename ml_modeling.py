@@ -168,7 +168,7 @@ def temporal_train_test_split(df, outcome_var, exclude = [], subset_cols = False
     return Xs, Ys
 
 
-def run_models(train_test_tuples, outcome_var, ks = [5, 10, 20]):
+def run_models(train_test_tuples, outcome_var, clfs, ks = [5, 10, 20]):
     all_results = []
     for i, (train, test) in enumerate(train_test_tuples):
         print("set", i)
@@ -178,9 +178,7 @@ def run_models(train_test_tuples, outcome_var, ks = [5, 10, 20]):
         results = cf_loop(x_train, y_train, x_test, y_test,
                              ks = ks,
                              set_num = i, params_dict = None,
-                             which_clfs = ("LogisticRegression", "KNN",
-                                           "AdaBoost", "NaiveBayes",
-                                           "Decision Tree", "Bagging"))
+                             which_clfs = clfs)
         all_results.append(results)
 
     return pd.concat(all_results, ignore_index = True)
