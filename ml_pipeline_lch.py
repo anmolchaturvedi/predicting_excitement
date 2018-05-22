@@ -525,18 +525,7 @@ def iza_process(train_df, test_df, var_dict, tops_threshold = 0.5, binary = None
 
 
 
-def dummies_tt_timeporal(train_test_tuples, replace):
-    updates = []
-    for train, test in train_test_tuples:
-        cats_train = isolate_categoricals(train, is_category, ret_categoricals = True, geos_indicator = False)
-        train = pd.get_dummies(train, columns = cats_train, dummy_na = True)
-        
-        cats_test = isolate_categoricals(train, is_category, ret_categoricals = True, geos_indicator = False)
-        test = pd.get_dummies(train, columns = cats_test, dummy_na = True)
-        updates.append((train, test))
 
-        
-    return updates
 
 
 
