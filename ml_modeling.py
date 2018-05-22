@@ -10,7 +10,7 @@ from sklearn.linear_model import LogisticRegression, Perceptron, OrthogonalMatch
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
-import graphviz 
+import graphviz
 from sklearn.metrics import accuracy_score as accuracy
 from sklearn.metrics import f1_score, precision_score, recall_score, f1_score, roc_auc_score
 import magiclooping as mp
@@ -19,17 +19,17 @@ import magiclooping as mp
 
 def split_data(df, outcome_var, geo_columns, test_size, seed = None):
     '''
-    Separate data frame into training and test subsets based on specified size 
+    Separate data frame into training and test subsets based on specified size
     for model training and evaluation.
 
     Inputs:
         df: pandas dataframe
         outcome_var: (string) variable model will predict
-        geo_columns:  (list of strings) list of column names corresponding to 
+        geo_columns:  (list of strings) list of column names corresponding to
             columns with numeric geographical information (ex: zipcodes)
-        test_size: (float) proportion of data to hold back from training for 
+        test_size: (float) proportion of data to hold back from training for
             testing
-    
+
     Output: testing and training data sets for predictors and outcome variable
     '''
     # remove outcome variable and highly correlated variables
@@ -47,19 +47,19 @@ def temporal_train_test_split(df, outcome_var, exclude = [], keep_cols = False):
         Xs = df.drop(skips, axis = 1)
     else:
         Xs = df[keep_cols]
-    
+
     Ys = df[outcome_var]
 
     return Xs, Ys
 
 
-def develop_args(name, params_dict):    
-        # create dictionaries for each possible tuning option specified 
+def develop_args(name, params_dict):
+        # create dictionaries for each possible tuning option specified
         # in param_dict
-        
+
     print("Creating args for: {} models".format(name))
 
-    options = params_dict[name] 
+    options = params_dict[name]
     tuners = list(options.keys())
     list_params = list(itertools.product(*options.values()))
 
@@ -71,7 +71,7 @@ def develop_args(name, params_dict):
 
     return all_model_params
 
-    
+
 
 def cf_loop(pred_train, label_train, pred_test, label_test, set_num, ks = [5, 10, 20], params_dict = None, plot = False, which_clfs = None):
     '''
@@ -80,10 +80,10 @@ def cf_loop(pred_train, label_train, pred_test, label_test, set_num, ks = [5, 10
     '''
     result_cols = ['set_num', 'model_type','clf', 'parameters', 'baseline_precision',
                 'baseline_recall','auc-roc']
-    
+
     # define columns for metrics at each threshold specified in function call
-    result_cols += list(chain.from_iterable(('precision_at_{}'.format(threshold), 'recall_at_{}'.format(threshold), 'f1_at_{}'.format(threshold)) for threshold in ks))
-            
+    result_cols += list(chain.from_iterable(('p_at_{}'.format(threshold), 'r_at_{}'.format(threshold), 'f1_at_{}'.format(threshold)) for threshold in ks))
+
     # define dataframe to write results to
     results_df =  pd.DataFrame(columns=result_cols)
 
@@ -96,14 +96,14 @@ def cf_loop(pred_train, label_train, pred_test, label_test, set_num, ks = [5, 10
         'GradientBoosting': GradientBoostingClassifier(learning_rate=0.05, subsample=0.5, max_depth=6, n_estimators=10),
         'NaiveBayes': GaussianNB(),
         "RandomForest": RandomForestClassifier(n_estimators=50, n_jobs=-1),
-        'KNN': KNeighborsClassifier(n_neighbors=3) 
+        'KNN': KNeighborsClassifier(n_neighbors=3)
     }
-    
+
     if which_clfs:
         clfs = {clf: all_clfs.get(clf, None) for clf in which_clfs}
     else:
         clfs = all_clfs
-    
+
     if params_dict is None:
         # define parameters to loop over. Thanks to the DSSG team for the recommendations!
         params_dict = {
@@ -117,34 +117,34 @@ def cf_loop(pred_train, label_train, pred_test, label_test, set_num, ks = [5, 10
             "RandomForest": {'n_estimators': [100, 10000], 'max_depth': [5,50], 'max_features': ['sqrt','log2'],'min_samples_split': [2,10], 'n_jobs':[-1], 'random_state':[1008]},
             "KNN": {'n_neighbors': [5],'weights': ['uniform'],'algorithm': ['auto']}
         }
-    
+
     for name, clf in clfs.items():
         print("Creating classifier: {}".format(name))
-        
+
         if clf is None:
             continue
-            
+
         # create all possible models using tuners in dictionaries created above
         all_model_params = develop_args(name, params_dict)
-        
+
         for args in all_model_params:
             try:
                 clf.set_params(**args)
                 y_pred_probs = clf.fit(pred_train, label_train.values.ravel()).predict_proba(pred_test)[:,1]
 
                 y_pred_probs_sorted, y_test_sorted = mp.joint_sort_descending(np.array(y_pred_probs), np.array(label_test))
-                
+
                 # print("Evaluating {} models".format(name))
-            
-                results_list = [set_num, name, clf, args, mp.precision_at_k(y_test_sorted, y_pred_probs_sorted, 100.0), 
+
+                results_list = [set_num, name, clf, args, mp.precision_at_k(y_test_sorted, y_pred_probs_sorted, 100.0),
                 mp.recall_at_k(y_test_sorted, y_pred_probs_sorted, 100.0), roc_auc_score(label_test, y_pred_probs)]
-                
-                for threshold in ks: 
+
+                for threshold in ks:
                     precision, recall, f1 = mp.scores_at_k(y_test_sorted, y_pred_probs_sorted, threshold)
                     results_list += [precision, recall, f1]
-    
+
                 results_df.loc[len(results_df)] = results_list
-            
+
                 if plot:
                     mp.plot_precision_recall_n(label_test,y_pred_probs, clf)
 
@@ -156,37 +156,67 @@ def cf_loop(pred_train, label_train, pred_test, label_test, set_num, ks = [5, 10
     return results_df
 
 
+def temporal_train_test_split(df, outcome_var, exclude = [], subset_cols = False):
+    if not subset_cols:
+        skips = [outcome_var] + exclude
+        Xs = df.drop(skips, axis = 1)
+    else:
+        Xs = df[subset_cols]
+
+    Ys = df[outcome_var]
+
+    return Xs, Ys
+
+
+def run_models(train_test_tuples, outcome_var, ks = [5, 10, 20]):
+    all_results = []
+    for i, (train, test) in enumerate(train_test_tuples):
+        print("set", i)
+
+        x_train, y_train = temporal_train_test_split(train, outcome_var)
+        x_test, y_test = temporal_train_test_split(test, outcome_var)
+        results = cf_loop(x_train, y_train, x_test, y_test,
+                             ks = ks,
+                             set_num = i, params_dict = None,
+                             which_clfs = ("LogisticRegression", "KNN",
+                                           "AdaBoost", "NaiveBayes",
+                                           "Decision Tree", "Bagging"))
+        all_results.append(results)
+
+    return pd.concat(all_results, ignore_index = True)
 
 
 
 
-def loop_dt(param_dict, training_predictors, testing_predictors, 
+
+
+def loop_dt(param_dict, training_predictors, testing_predictors,
                 training_outcome, testing_outcome):
     '''
-    Loop over series of possible parameters for decision tree classifier to 
+    Loop over series of possible parameters for decision tree classifier to
     train and test models, storing accuracy scores in a data frame
 
-    Inputs: 
-        param_dict: (dictionary) possible decision tree parameters 
+    Inputs:
+        param_dict: (dictionary) possible decision tree parameters
         training_predictors: data set of predictor variables for training
         testing_predictors: data set of predictor variables for testing
         training_outcome: outcome variable for training
         testing_outcome: outcome variable for testing
 
-    Outputs: 
-        accuracy_df: (data frame) model parameters and accuracy scores for 
+    Outputs:
+        accuracy_df: (data frame) model parameters and accuracy scores for
             each iteration of the model
 
-    Attribution: adapted combinations of parameters from Moinuddin Quadri's 
-    suggestion for looping: https://stackoverflow.com/questions/42627795/i-want-to-loop-through-all-possible-combinations-of-values-of-a-dictionary 
-    and method for faster population of a data frame row-by-row from ShikharDua: 
+    Attribution: adapted combinations of parameters from Moinuddin Quadri's
+    suggestion for looping: https://stackoverflow.com/questions/42627795/i-want-to-loop-through-all-possible-combinations-of-values-of-a-dictionary
+    and method for faster population of a data frame row-by-row from ShikharDua:
     https://stackoverflow.com/questions/10715965/add-one-row-in-a-pandas-dataframe
     '''
 
 
     rows_list = []
     for clf_type, classifier in classifier_type.items():
-    
+
         for params in list(itertools.product(*param_dict.values())):
             classifier(params)
             dec_tree.fit(training_predictors, training_outcome)
@@ -194,7 +224,7 @@ def loop_dt(param_dict, training_predictors, testing_predictors,
 
     rows_list = []
     for params in list(itertools.product(*param_dict.values())):
-        dec_tree = DecisionTreeClassifier(criterion = params[0], 
+        dec_tree = DecisionTreeClassifier(criterion = params[0],
                                           max_depth = params[1],
                                           max_features = params[2],
                                           min_samples_split = params[3])
@@ -211,56 +241,56 @@ def loop_dt(param_dict, training_predictors, testing_predictors,
         acc_dict['criterion'], acc_dict['max_depth'], acc_dict['max_features'], acc_dict['min_samples_split'] = params
         acc_dict['train_acc'] = train_acc
         acc_dict['test_acc'] = test_acc
-        
+
         rows_list.append(acc_dict)
 
-    accuracy_df = pd.DataFrame(rows_list) 
+    accuracy_df = pd.DataFrame(rows_list)
 
     return accuracy_df
 
 
 def create_best_tree(accuracy_df, training_predictors, training_outcome):
     '''
-    Create decision tree based on highest accuracy score in model testing, to 
+    Create decision tree based on highest accuracy score in model testing, to
     view feature importance of each fitted feature
 
     Inputs:
-        accuracy_df: (data frame) model parameters and accuracy scores for 
+        accuracy_df: (data frame) model parameters and accuracy scores for
             each iteration of the model
         training_predictors: data set of predictor variables for training
         training_outcome: outcome variable for training
 
     Outputs:
-        best_tree: (classifier object) decision tree made with parameters used 
-            for highest-ranked model in terms of accuracy score during 
+        best_tree: (classifier object) decision tree made with parameters used
+            for highest-ranked model in terms of accuracy score during
             parameters loop
     '''
     accuracy_ranked = accuracy_df.sort_values('test_acc', ascending = False)
     dec_tree = DecisionTreeClassifier(
     criterion = accuracy_ranked.loc[accuracy_ranked.iloc[0].name, 'criterion'],
     max_depth = accuracy_ranked.loc[accuracy_ranked.iloc[0].name, 'max_depth'],
-    max_features = accuracy_ranked.loc[accuracy_ranked.iloc[0].name, 'max_features'], 
+    max_features = accuracy_ranked.loc[accuracy_ranked.iloc[0].name, 'max_features'],
     min_samples_split = accuracy_ranked.loc[accuracy_ranked.iloc[0].name, 'min_samples_split'])
 
     dec_tree.fit(training_predictors, training_outcome)
-    
+
     return dec_tree
-    
+
 
 def feature_importance_ranking(best_tree, training_predictors):
     '''
     View feature importance of each fitted feature
 
     Inputs:
-        best_tree: (classifier object) decision tree made with parameters used 
-            for highest-ranked model in terms of accuracy score during 
+        best_tree: (classifier object) decision tree made with parameters used
+            for highest-ranked model in terms of accuracy score during
             parameters loop
 
     Outputs:
-        features_df: (data frame) table of feature importance for each 
+        features_df: (data frame) table of feature importance for each
         predictor variable
     '''
-    features_df = pd.DataFrame(best_tree.feature_importances_, 
+    features_df = pd.DataFrame(best_tree.feature_importances_,
                                 training_predictors.columns).rename(
                                 columns = {0: 'feature_importance'}, inplace = True)
     features_df.sort_values(by = 'feature_importance', ascending = False)
@@ -269,9 +299,9 @@ def feature_importance_ranking(best_tree, training_predictors):
 
 def visualize_best_tree(best_tree, training_predictors):
     '''
-    Visualize decision tree object with GraphWiz 
+    Visualize decision tree object with GraphWiz
     '''
-    viz = sklearn.tree.export_graphviz(best_tree, 
+    viz = sklearn.tree.export_graphviz(best_tree,
                     feature_names = training_predictors.columns,
                     class_names=['Financially Stable', 'Financial Distress'],
                     rounded=False, filled=True)
@@ -279,5 +309,5 @@ def visualize_best_tree(best_tree, training_predictors):
     with open("tree.dot") as f:
         dot_graph = f.read()
         graph = graphviz.Source(dot_graph)
-    
+
     return graph
