@@ -27,13 +27,13 @@ def view_dist(df, geo_columns = True, fig_size=(20,15), labels = None):
     plt.show()
 
 
-def plot_value_counts(df, type_dict, category):
+def plot_value_counts(df, type_dict, category, norm = False, plot_kind = 'bar'):
     for col in type_dict[category]:
         plot_title = col + " distribution"
-        df[col].value_counts().plot(kind='bar')
+        df[col].value_counts(normalize = norm).plot(kind=plot_kind)
         plt.title(plot_title)
-        plt.xlabel = col
-        plt.ylabel = "frequency"
+        plt.xlabel(col)
+        plt.ylabel("frequency")
         plt.show()
 
 

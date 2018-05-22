@@ -272,15 +272,17 @@ def summarize_df(df):
     type_dict = defaultdict(list)
     geos = ["city", "state", "county", "country", "zip", "zipcode", "latitude", "longitude"]
     geos = "|".join(geos)
-    summary = pd.DataFrame(columns = ["col_name", "num_values", "num_nulls", "unique_values",  "data_type", "col_type", "most_common"])
+    summary = pd.DataFrame(columns = ["col_name", "num_values", "num_nulls", "unique_values",  "data_type", "col_type", "most_common", "prevalence"])
     
-    print("Starting next train-test set...")
     for col in df.columns:
-        num_values = df[col].shape[0]
+        num_values = df[col].value_counts().sum()
         uniques = len(df[col].unique())
         nulls = df[col].isnull().sum()
         most_common = list(df[col].mode())[0]
+        mode_count = (df[col].value_counts().max() / num_values) * 100
         dtype = df[col].dtype
+
+
         if re.search(geos, col):
             col_type = "geo"
             type_dict["geo"].append(col)
@@ -302,7 +304,7 @@ def summarize_df(df):
         elif uniques > 6:
             col_type = "tops"
             type_dict["tops"].append(col)
-        summary.loc[col] = [col, num_values, nulls, uniques, dtype, col_type, most_common]
+        summary.loc[col] = [col, num_values, nulls, uniques, dtype, col_type, most_common, mode_count]
     
     summary.set_index("col_name", inplace = True)
     return summary, type_dict
@@ -374,7 +376,7 @@ def time_series_split(df, date_col, train_size, test_size, increment = 'month', 
             min_date = min_date.replace(day=1, hour=0, minute=0, second=0)
     
     if increment == 'month':
-        train_max = min_date + relativedelta(months = train_size)
+        train_max = min_date + relativedelta(months = train_size) - timedelta(days = 1)
         test_min = train_max + timedelta(days = 1)
         test_max = min(test_min + relativedelta(months = test_size), df[date_col].max())
         
@@ -384,7 +386,7 @@ def time_series_split(df, date_col, train_size, test_size, increment = 'month', 
         test_max = min((test_min + relativedelta(days = test_size)), df[date_col].max())
     
     if increment == 'year':
-        train_max = timedelta(months = train_size)
+        train_max = timedelta(months = train_size) - timedelta(days = 1)
         test_min = train_max + relativedelta(years = train_size)
         test_max = min(test_min + relativedelta(years = test_size), df[date_col].max())
     
@@ -392,7 +394,7 @@ def time_series_split(df, date_col, train_size, test_size, increment = 'month', 
     train_df = new_df[(new_df[date_col] >= min_date) & (new_df[date_col] <= train_max)]
     test_df = new_df[(new_df[date_col] >= test_min) & (new_df[date_col] <= test_max)]
     
-    date_refs = (min_date, train_max, test_min, test_max)
+    date_refs = (increment, min_date, train_size, test_min, test_size)
 
     return train_df, test_df, date_refs
 
@@ -403,7 +405,7 @@ def create_expanding_splits(df, total_periods, dates, train_period_base, test_pe
     months_used = train_period_base
     
     tt_sets = []
-    set_dates = pd.DataFrame(columns = ("training_start", "training_period_end", "test_period_start", "test_period_end"))
+    set_dates = pd.DataFrame(columns = ("period", "training_start", "training_period", "test_period_start", "test_period"))
     
     while months_used < total_periods:
         
@@ -418,34 +420,6 @@ def create_expanding_splits(df, total_periods, dates, train_period_base, test_pe
 
     return (tt_sets, set_dates)
 
-
-
-# def determine_top_dummies(train_test_tuples, var_dict, threshold, max_options = 10):
-#     set_distro_dummies = []
-#     counter = 1
-#     for train, test in train_test_tuples:
-#         print("starting set {}...".format(counter))
-#         dummies_dict = {}
-#         for col in train[var_dict['tops']]:
-#             print("col: ", col)
-#             col_sum = train[col].value_counts().sum()
-#             top = train[col].value_counts().nlargest(max_options)
-            
-#             top_value = 0
-#             num_dummies = 0
-
-#             while ((top_value / col_sum) < threshold) & (num_dummies < max_options):
-#                 top_value += top[num_dummies]
-#                 num_dummies += 1
-#             print("Keeping top {} values.".format(num_dummies, (top_value / col_sum)))
-#             print()
-#             keep_dummies = list(top.index)[:num_dummies]
-#             dummies_dict[col] = keep_dummies
-            
-#         counter += 1
-#         set_distro_dummies.append(dummies_dict)
-
-#     return set_distro_dummies
 
 
 
@@ -475,19 +449,6 @@ def train_top_dummies(train_df, tops_list, threshold, max_options = 10):
 
 
 
-
-# def lower_vals_to_other(set_specific_dummies, train_test_tuples):
-#     counter = 0
-#     for i, set_dict in enumerate(set_specific_dummies):
-#         print("starting set {}...".format(counter))
-#         counter += 1
-#         for col, vals in set_dict.items():
-#             train, test = train_test_tuples[i]
-#             train.loc[~train[col].isin(vals), col] = 'Other'
-#             test.loc[~test[col].isin(vals), col] = 'Other'
-
-
-
 def apply_tops(set_specific_dummies, var_dict, train_df, test_df):
     counter = 0
     for set_dict in set_specific_dummies:
@@ -497,30 +458,6 @@ def apply_tops(set_specific_dummies, var_dict, train_df, test_df):
             test_df.loc[~test_df[col].isin(vals), col] = 'Other'
 
 
-
-
-
-# def replace_set_specific_dummies(train_test_tuples, to_dummies):
-#     augmented_sets = []
-#     for i, (train, test) in enumerate(train_test_tuples):
-#         print("Starting set {}...".format(i))
-#         print(train.shape)
-#         print(test.shape)
-#         print("new shapes")
-#         train_d = replace_dummies(train, to_dummies)
-#         print(train_d.shape)
-#         test_d = replace_dummies(test, to_dummies)
-#         print(test_d.shape)
-#         print()
-#         augmented_sets.append((train_d, test_d))
-#     return augmented_sets
-        
-
-
-def convert_geos(train_df, test_df, geo_cols):
-    for col in geo_cols:
-        train_df[col] = train[col].astype('category')
-        test_df[col] = test[col].astype('category')
 
 
 def iza_process(train_df, test_df, var_dict, tops_threshold = 0.5, binary = None, geos = False):
