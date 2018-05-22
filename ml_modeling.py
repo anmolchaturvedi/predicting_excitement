@@ -184,7 +184,24 @@ def run_models(train_test_tuples, outcome_var, clfs, ks = [5, 10, 20]):
     return pd.concat(all_results, ignore_index = True)
 
 
+def construct_best(metrics_df):
+    identifiers = ['clf', 'parameters', 'model_type', 'set_num']
+    metric_cols = set(metrics_df.columns) - set(identifiers)
 
+    best_df = pd.DataFrame(columns = ['metric','baseline_p', 'max_value',
+                                     'model_num', 'model_type', 'clf', 'test_set'])
+
+    for col in metric_cols:
+        best = metrics_df[col].max()
+        idx = metrics_df[col].idxmax()
+        row = [col, metrics_df.loc[idx, 'baseline_precision'],
+               best, idx, metrics_df.loc[idx, 'model_type'],
+               metrics_df.loc[idx, 'clf'], metrics_df.loc[idx, 'set_num']]
+
+        best_df.loc[len(best_df)] = row
+
+    best_df.set_index('metric', inplace = True)
+    return best_df
 
 
 
