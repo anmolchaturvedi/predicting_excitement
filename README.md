@@ -11,6 +11,6 @@ I trained multiple Naive Bayes, Logistic Regression, K-Nearest Neightbors, Baggi
 
 ### Files Included
 - [`donors_choose.ipynb`](https://github.com/lorenh516/predicting_excitement/blob/master/donors_choose.ipynb): My analysis, model creation, and model evaluation
-- [`ml_explore.py`](https://github.com/lorenh516/predicting_excitement/blob/master/ml_explore.py): Helper functions for data exploration preprocessing
+- [`ml_explore.py`](https://github.com/lorenh516/predicting_excitement/blob/master/ml_explore.py): Helper functions for data exploration
 - [`ml_pipeline_lch.py`](https://github.com/lorenh516/predicting_excitement/blob/master/ml_pipeline_lch.py): Helper functinos for data cleaning and preprocessing
 - [`magiclooping.py`](https://github.com/lorenh516/predicting_excitement/blob/master/magiclooping.py) and [`ml_modeling.py`](https://github.com/lorenh516/predicting_excitement/blob/master/ml_modeling.py): Helper functions for model creation and evaluation
